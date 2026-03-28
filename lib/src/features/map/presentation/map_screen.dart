@@ -310,6 +310,7 @@ class _MapScreenState extends State<MapScreen>
         width: 74,
         height: 74,
         child: FloatingActionButton(
+          heroTag: 'map_add_event_fab',
           backgroundColor: const Color(0xFF1E8E3E),
           foregroundColor: Colors.white,
           shape: const CircleBorder(),

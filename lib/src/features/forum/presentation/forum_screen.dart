@@ -173,6 +173,7 @@ class _ForumScreenState extends State<ForumScreen> {
               },
             ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'forum_add_topic_fab',
         onPressed: _showAddTopicDialog,
         child: const Icon(Icons.add),
       ),
