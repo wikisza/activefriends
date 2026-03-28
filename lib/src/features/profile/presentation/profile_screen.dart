@@ -6,6 +6,7 @@ import 'package:activefriends/src/models/topic_catalog.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:activefriends/src/features/profile/presentation/profile_service.dart';
+import 'package:activefriends/src/features/profile/presentation/my_events_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -369,6 +370,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         subtitle: Text(_email ?? '—'),
                       ),
                       const Divider(height: 1, indent: 16, endIndent: 16),
+                     ListTile(
+                      leading: const Icon(Icons.event_note_outlined),
+                      title: const Text('Moje wydarzenia'),
+                      subtitle: const Text('Lista Twoich aktywności'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (context) => const MyEventsScreen()),
+                        );
+                      },
+                    ),
+                    const Divider(height: 1, indent: 16, endIndent: 16),
                       ListTile(
                         leading: const Icon(Icons.badge_outlined),
                         title: const Text('Pseudonim'),
