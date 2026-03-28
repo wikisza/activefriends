@@ -22,6 +22,7 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
   int _unreadChat = 0;
   int _unreadNotifications = 0;
 
+  // Klucz do sterowania stanem mapy (odświeżanie pinów)
   final GlobalKey<MapScreenState> _mapKey = GlobalKey<MapScreenState>();
 
   final ChatRepository _chatRepo = ChatRepository();
@@ -35,7 +36,7 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
   static const int _notifTabIndex = 3;
 
   late final List<Widget> _tabs = <Widget>[
-    MapScreen(key: _mapKey),
+    MapScreen(key: _mapKey), // MapScreen musi mieć publiczną klasę stanu MapScreenState
     const ChatConversationsScreen(),
     const ForumScreen(),
     const NotificationsScreen(),
@@ -74,9 +75,16 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
     super.dispose();
   }
 
-  void _onTabSelected(int index) {
+  // Poprawiona logika zmiany zakładki
+  void _handleTabSelection(int index) {
+    // Jeśli klikamy w Mapę (indeks 0), odświeżamy piny
+    if (index == 0) {
+      _mapKey.currentState?.loadPins();
+    }
+
     setState(() {
       _currentIndex = index;
+      // Czyścimy liczniki po wejściu w odpowiednią zakładkę
       if (index == _chatTabIndex) _unreadChat = 0;
       if (index == _notifTabIndex) _unreadNotifications = 0;
     });
@@ -104,21 +112,7 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
         ),
         child: NavigationBar(
           selectedIndex: _currentIndex,
-          onDestinationSelected: (int index) {
-            // 3. LOGIKA ODŚWIEŻANIA:
-            if (index == 0) { // Jeśli użytkownik klika w zakladkę Mapa (indeks 0)
-              _mapKey.currentState?.loadPins(); // WYMUŚ ODŚWIEŻENIE PINÓW
-            }
-
-            if (index == _chatTabIndex) {
-              setState(() {
-                _currentIndex = index;
-                _unreadCount = 0;
-              });
-            } else {
-              setState(() => _currentIndex = index);
-            }
-          },
+          onDestinationSelected: _handleTabSelection, // Używamy poprawionej metody
           destinations: <NavigationDestination>[
             const NavigationDestination(
               icon: Icon(Icons.map_outlined),
