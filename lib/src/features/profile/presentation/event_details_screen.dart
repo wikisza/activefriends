@@ -1,4 +1,5 @@
 import 'package:activefriends/src/app/theme/app_palette.dart';
+import 'package:activefriends/src/app/ui/app_transitions.dart';
 import 'package:activefriends/src/features/chat/data/chat_repository.dart';
 import 'package:activefriends/src/features/chat/presentation/chat_thread_screen.dart';
 import 'package:activefriends/src/features/profile/presentation/profile_service.dart';
@@ -69,7 +70,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
           await _chatRepo.getOrCreateEventGroupConversation(widget.event.id);
       if (!mounted) return;
       await Navigator.of(context).push(
-        MaterialPageRoute<void>(
+        AppRoute<void>(
           builder: (BuildContext context) => ChatThreadScreen(
             peerUserId: '',
             peerDisplayName: '',

@@ -1,3 +1,4 @@
+import 'package:activefriends/src/app/ui/app_transitions.dart';
 import 'package:activefriends/src/features/forum/data/datasources/forum_remote_datasource.dart';
 import 'package:activefriends/src/features/forum/data/repositories/forum_repository.dart';
 import 'package:activefriends/src/models/forum_comment.dart';
@@ -200,7 +201,7 @@ class _ForumScreenState extends State<ForumScreen> {
           ),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const ShimmerLoading(itemCount: 6)
                 : _topics.isEmpty
                 ? Center(
                     child: Column(
@@ -226,7 +227,9 @@ class _ForumScreenState extends State<ForumScreen> {
                     itemCount: _topics.length,
                     itemBuilder: (context, index) {
                       final topic = _topics[index];
-                      return Card(
+                      return AnimatedListItem(
+                        index: index,
+                        child: Card(
                         margin: const EdgeInsets.symmetric(
                           horizontal: 12,
                           vertical: 8,
@@ -287,7 +290,7 @@ class _ForumScreenState extends State<ForumScreen> {
                           onTap: () {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(
+                              AppRoute<void>(
                                 builder: (context) => TopicDiscussionScreen(
                                   topic: topic,
                                   repository: _repository,
@@ -296,6 +299,7 @@ class _ForumScreenState extends State<ForumScreen> {
                             );
                           },
                         ),
+                      ),
                       );
                     },
                   ),

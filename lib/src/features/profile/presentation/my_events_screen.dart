@@ -1,4 +1,5 @@
 import 'package:activefriends/src/app/theme/app_palette.dart';
+import 'package:activefriends/src/app/ui/app_transitions.dart';
 import 'package:activefriends/src/features/profile/presentation/event_details_screen.dart';
 import 'package:activefriends/src/features/profile/presentation/profile_service.dart';
 import 'package:activefriends/src/models/event.dart'; // upewnij się, że ścieżka jest poprawna
@@ -160,7 +161,7 @@ class _EventTile extends StatelessWidget {
         trailing: _StatusBadge(status: event.status),
         onTap: () async {
           final bool? result = await Navigator.of(context).push<bool>(
-            MaterialPageRoute(
+            AppRoute<bool>(
               builder: (context) => EventDetailsScreen(event: event),
             ),
           );

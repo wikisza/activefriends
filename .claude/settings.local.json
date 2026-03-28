@@ -2,7 +2,20 @@
   "permissions": {
     "allow": [
       "Bash(find . -type f -name *forum*)",
-      "Bash(grep -E \"\\\\.\\(sql|dart\\)$\")"
+      "Bash(grep -E \"\\\\.\\(sql|dart\\)$\")",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(flutter analyze:*)",
+      "Bash(grep -v \"^$\")",
+      "Bash(python3 -c \"from PIL import Image, ImageDraw; print\\(''ok''\\)\")",
+      "Bash(python -c \"from PIL import Image, ImageDraw; print\\(''ok''\\)\")",
+      "Bash(pip install:*)",
+      "Bash(node -e \"console.log\\(''ok''\\)\")",
+      "Bash(powershell.exe -Command \"Add-Type -AssemblyName System.Drawing; [System.Drawing.Bitmap]::new\\(10,10\\) | Out-Null; Write-Output ''ok''\")",
+      "Bash(powershell.exe -Command \"Test-Path ''C:\\\\activefriends\\\\assets\\\\icon\\\\icon.png''\")",
+      "Bash(powershell.exe -Command \"\\(Get-Item ''C:\\\\activefriends\\\\assets\\\\icon\\\\icon.png''\\).Length\")",
+      "Bash(flutter pub:*)",
+      "Bash(dart run:*)"
     ]
   }
 }

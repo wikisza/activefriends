@@ -1,4 +1,5 @@
 import 'package:activefriends/src/app/theme/app_palette.dart';
+import 'package:activefriends/src/app/ui/app_transitions.dart';
 import 'package:activefriends/src/features/auth/data/auth_service.dart';
 import 'package:activefriends/src/features/chat/data/chat_repository.dart';
 import 'package:activefriends/src/features/chat/presentation/chat_thread_screen.dart';
@@ -339,7 +340,7 @@ class _MapScreenState extends State<MapScreen>
     }
 
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
+      AppRoute<void>(
         builder: (BuildContext context) => ChatThreadScreen(
           peerUserId: event.organizer.id,
           peerDisplayName: event.organizer.displayName,

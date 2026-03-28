@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:activefriends/src/app/ui/app_transitions.dart';
 import 'package:activefriends/src/features/notifications/data/notification_repository.dart';
 import 'package:activefriends/src/features/notifications/domain/app_notification.dart';
 import 'package:flutter/material.dart';
@@ -123,7 +124,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ),
             Expanded(
               child: _loading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const ShimmerLoading(itemCount: 6)
                   : _error != null
                       ? _ErrorView(message: _error!, onRetry: _load)
                       : _filtered.isEmpty
@@ -131,15 +132,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           : ListView.separated(
                               physics: const AlwaysScrollableScrollPhysics(),
                               itemCount: _filtered.length,
-                              separatorBuilder: (context, i) =>
+                              separatorBuilder: (_, _) =>
                                   const Divider(height: 1),
                               itemBuilder: (BuildContext context, int i) {
                                 final AppNotification n = _filtered[i];
-                                return _NotificationTile(
-                                  notification: n,
-                                  onTap: () => _markRead(n),
-                                  cs: cs,
-                                  theme: theme,
+                                return AnimatedListItem(
+                                  index: i,
+                                  child: _NotificationTile(
+                                    notification: n,
+                                    onTap: () => _markRead(n),
+                                    cs: cs,
+                                    theme: theme,
+                                  ),
                                 );
                               },
                             ),
