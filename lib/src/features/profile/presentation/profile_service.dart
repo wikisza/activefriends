@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'package:activefriends/src/models/event.dart';
+import 'package:activefriends/src/models/event_route.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:activefriends/src/models/profile.dart';
 
@@ -20,6 +22,36 @@ class ProfileService {
 
     if (row == null) return null;
     return Profile.fromJson(row);
+  }
+
+  Future<List<Event>> fetchMyEvents() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return [];
+
+    final response = await _client
+        .from('events') // nazwa Twojej tabeli w Supabase
+        .select()
+        .eq('organizer_id', user.id)
+        .order('created_at', ascending: false);
+
+    final List<dynamic> data = response;
+    return data.map((json) => Event.fromJson(json)).toList();
+  }
+
+  Future<Profile?> fetchProfileById(String id) async {
+    final response = await _client.from('profiles').select().eq('id', id).maybeSingle();
+    return response != null ? Profile.fromJson(response) : null;
+  }
+
+  Future<EventRoute?> fetchEventRoute(String eventId) async {
+    final response = await _client
+        .from('event_routes') // nazwa Twojej tabeli tras
+        .select()
+        .eq('event_id', eventId)
+        .maybeSingle();
+
+    if (response == null) return null;
+    return EventRoute.fromJson(response);
   }
 
   // Aktualizacja pseudonimu
