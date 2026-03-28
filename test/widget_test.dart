@@ -9,6 +9,7 @@ void main() {
     expect(find.text('Szukaj aktywnosci w Bydgoszczy'), findsOneWidget);
     expect(find.text('Mapa'), findsOneWidget);
     expect(find.text('Czat'), findsOneWidget);
+    expect(find.text('Forum'), findsOneWidget);
     expect(find.text('Profil'), findsOneWidget);
 
     await tester.tap(find.text('Czat'));

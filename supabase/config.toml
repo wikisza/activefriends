@@ -1,0 +1,10 @@
+# Konfiguracja Supabase CLI (https://supabase.com/docs/guides/cli)
+#
+# 1) Zaloguj się:  supabase login
+# 2) Powiąż projekt (ref z URL, np. https://XXXX.supabase.co → XXXX):
+#    supabase link --project-ref kalaofclgpuogyebqzgt
+# 3) Wgraj migracje na chmurę:  supabase db push
+#
+# Bez CLI: w Dashboard → SQL → wklej po kolei pliki z folderu migrations/
+
+project_id = "kalaofclgpuogyebqzgt"
