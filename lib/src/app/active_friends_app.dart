@@ -1,5 +1,7 @@
 import 'package:activefriends/src/app/main_tabs_screen.dart';
+import 'package:activefriends/src/features/auth/presentation/login_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ActiveFriendsApp extends StatelessWidget {
   const ActiveFriendsApp({super.key});
@@ -17,7 +19,21 @@ class ActiveFriendsApp extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFFE9EEF2),
         useMaterial3: true,
       ),
-      home: const MainTabsScreen(),
+      home: StreamBuilder<AuthState>(
+        stream: Supabase.instance.client.auth.onAuthStateChange,
+        builder: (BuildContext context, AsyncSnapshot<AuthState> snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
+          final Session? session = snapshot.data?.session;
+          if (session != null) {
+            return const MainTabsScreen();
+          }
+          return const LoginScreen();
+        },
+      ),
     );
   }
 }

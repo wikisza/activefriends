@@ -1,69 +1,187 @@
+import 'package:activefriends/src/features/auth/data/auth_service.dart';
+import 'package:activefriends/src/models/profile.dart';
 import 'package:flutter/material.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profil'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: <Widget>[
-          const CircleAvatar(
-            radius: 34,
-            backgroundColor: Color(0xFFE5F2E8),
-            child: Icon(Icons.person, size: 40, color: Color(0xFF1E8E3E)),
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  final AuthService _authService = AuthService();
+  Profile? _profile;
+  bool _isLoading = true;
+  String? _email;
+
+  @override
+  void initState() {
+    super.initState();
+    _email = _authService.currentUser?.email;
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    setState(() => _isLoading = true);
+    try {
+      final Profile? p = await _authService.fetchProfile();
+      if (mounted) setState(() => _profile = p);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _editDisplayName() async {
+    final TextEditingController ctrl =
+        TextEditingController(text: _profile?.displayName ?? '');
+    final String? newName = await showDialog<String>(
+      context: context,
+      builder: (BuildContext ctx) => AlertDialog(
+        title: const Text('Zmień pseudonim'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(
+            labelText: 'Pseudonim',
+            border: OutlineInputBorder(),
           ),
-          const SizedBox(height: 12),
-          Text(
-            'Uzytkownik ActiveFriends',
-            style: Theme.of(context).textTheme.titleLarge,
-            textAlign: TextAlign.center,
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Anuluj'),
           ),
-          const SizedBox(height: 4),
-          Text(
-            'Poziom weryfikacji: 2',
-            style: Theme.of(context).textTheme.bodyMedium,
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    'Dostep do bazy danych',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Aplikacja jest przygotowana pod backend API oparty o PostgreSQL (np. Supabase).\n'
-                    'Podaj API_BASE_URL, a dane wydarzen beda pobierane z bazy.',
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF5F7FA),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const SelectableText(
-                      'flutter run --dart-define=USE_API=true --dart-define=API_BASE_URL=https://twoj-backend/api',
-                      style: TextStyle(fontSize: 12),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(ctrl.text.trim()),
+            child: const Text('Zapisz'),
           ),
         ],
       ),
+    );
+
+    if (newName == null || newName.isEmpty) return;
+
+    try {
+      await _authService.updateDisplayName(newName);
+      await _loadProfile();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Pseudonim zaktualizowany.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nie udało się zapisać zmian.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _signOut() async {
+    await _authService.signOut();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme cs = theme.colorScheme;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Profil'),
+        actions: <Widget>[
+          IconButton(
+            onPressed: _signOut,
+            icon: const Icon(Icons.logout),
+            tooltip: 'Wyloguj',
+          ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.all(20),
+              children: <Widget>[
+                const SizedBox(height: 12),
+                Center(
+                  child: CircleAvatar(
+                    radius: 40,
+                    backgroundColor: cs.primaryContainer,
+                    child: Icon(Icons.person,
+                        size: 48, color: cs.onPrimaryContainer),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Text(
+                        _profile?.displayName ?? '—',
+                        style: theme.textTheme.headlineSmall
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(width: 6),
+                      IconButton(
+                        onPressed: _editDisplayName,
+                        icon: const Icon(Icons.edit_outlined, size: 20),
+                        tooltip: 'Edytuj pseudonim',
+                      ),
+                    ],
+                  ),
+                ),
+                if (_email != null)
+                  Center(
+                    child: Text(
+                      _email!,
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(color: cs.onSurfaceVariant),
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                Center(
+                  child: Chip(
+                    label: Text(
+                      'Weryfikacja: poziom ${_profile?.verificationLevel ?? 1}',
+                    ),
+                    avatar: const Icon(Icons.verified_outlined, size: 18),
+                  ),
+                ),
+                const SizedBox(height: 30),
+                Card(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Column(
+                    children: <Widget>[
+                      ListTile(
+                        leading: const Icon(Icons.email_outlined),
+                        title: const Text('E-mail'),
+                        subtitle: Text(_email ?? '—'),
+                      ),
+                      const Divider(height: 1, indent: 16, endIndent: 16),
+                      ListTile(
+                        leading: const Icon(Icons.badge_outlined),
+                        title: const Text('Pseudonim'),
+                        subtitle: Text(_profile?.displayName ?? '—'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: _editDisplayName,
+                      ),
+                      const Divider(height: 1, indent: 16, endIndent: 16),
+                      ListTile(
+                        leading: Icon(Icons.logout, color: cs.error),
+                        title:
+                            Text('Wyloguj', style: TextStyle(color: cs.error)),
+                        onTap: _signOut,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }
