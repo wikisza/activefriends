@@ -10,6 +10,7 @@ class EventPreviewPanel extends StatelessWidget {
     required this.onAskQuestion,
     required this.onHelp,
     required this.onReportLocal,
+    required this.onChatWithOrganizer,
     this.bottomPadding = 98,
     this.isBusy = false,
   });
@@ -20,6 +21,7 @@ class EventPreviewPanel extends StatelessWidget {
   final VoidCallback onAskQuestion;
   final VoidCallback onHelp;
   final VoidCallback onReportLocal;
+  final VoidCallback onChatWithOrganizer;
   final double bottomPadding;
   final bool isBusy;
 
@@ -69,6 +71,11 @@ class EventPreviewPanel extends StatelessWidget {
                         '${event.organizer.displayName}  |  ${event.organizer.verificationLevel.label}',
                         style: theme.textTheme.bodyMedium,
                       ),
+                    ),
+                    IconButton(
+                      onPressed: isBusy ? null : onChatWithOrganizer,
+                      icon: const Icon(Icons.chat_bubble_outline),
+                      tooltip: 'Napisz do organizatora',
                     ),
                   ],
                 ),
