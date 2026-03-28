@@ -18,6 +18,8 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
   EventRoute? _route;
   Profile? _organizer;
   bool _isLoading = true;
+  List<Map<String, dynamic>> _participants = [];
+  String _fullAddress = "Ładowanie adresu...";
 
   @override
   void initState() {
@@ -31,11 +33,15 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
       final results = await Future.wait([
         _service.fetchEventRoute(widget.event.id),
         _service.fetchProfileById(widget.event.organizerId),
+        _service.fetchParticipantsWithProfiles(widget.event.id),
+        _service.getAddressFromCoords(widget.event.lat, widget.event.lng),
       ]);
       if (mounted) {
         setState(() {
           _route = results[0] as EventRoute?;
           _organizer = results[1] as Profile?;
+          _participants = results[2] as List<Map<String, dynamic>>;
+          _fullAddress = results[3] as String;
         });
       }
     } finally {
@@ -91,6 +97,15 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                         title: 'Koniec',
                         value: DateFormat('EEEE, d MMMM HH:mm', 'pl').format(event.endsAt!),
                       ),
+                    
+                    // TUTAJ WSTAWIONY ADRES:
+                    _InfoTile(
+                      icon: Icons.location_on_outlined, 
+                      title: 'Dokładny adres', 
+                      value: _fullAddress, // Ta zmienna, którą ładujemy w _loadData
+                    ),
+                    
+                    // Możesz zostawić miasto jako dodatkową informację:
                     _InfoTile(icon: Icons.location_city, title: 'Miasto', value: event.city),
                     
                     const Divider(height: 40),
@@ -127,6 +142,72 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                         trailing: IconButton(icon: const Icon(Icons.chat_bubble_outline), onPressed: () {}),
                       ),
                     ],
+
+                    const Divider(height: 40),
+                    _buildSectionTitle('Uczestnicy (${_participants.length})'),
+                    const SizedBox(height: 12),
+
+                    if (_participants.isEmpty)
+                      Text(
+                        'Nikt jeszcze nie dołączył. Bądź pierwszy!',
+                        style: theme.textTheme.bodyMedium?.copyWith(color: cs.outline),
+                      )
+                    else
+                      SizedBox(
+                        height: 90, // Wysokość dla awatara i podpisu
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _participants.length,
+                          itemBuilder: (context, index) {
+                            final pData = _participants[index];
+                            final profile = Profile.fromJson(pData['profiles']);
+                            final roleName = pData['role'] as String;
+
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 16),
+                              child: Column(
+                                children: [
+                                  Stack(
+                                    alignment: Alignment.bottomRight,
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 28,
+                                        backgroundColor: cs.primaryContainer,
+                                        backgroundImage: profile.avatarUrl != null
+                                            ? NetworkImage(profile.avatarUrl!)
+                                            : null,
+                                        child: profile.avatarUrl == null
+                                            ? Icon(Icons.person, color: cs.onPrimaryContainer)
+                                            : null,
+                                      ),
+                                      // Badge dla specjalnych ról (organizator/pomocnik)
+                                      if (roleName != 'member')
+                                        Container(
+                                          padding: const EdgeInsets.all(3),
+                                          decoration: BoxDecoration(
+                                            color: roleName == 'organizer' ? Colors.amber : cs.primary,
+                                            shape: BoxShape.circle,
+                                            border: Border.all(color: theme.scaffoldBackgroundColor, width: 2),
+                                          ),
+                                          child: Icon(
+                                            roleName == 'organizer' ? Icons.star : Icons.medical_services,
+                                            size: 10,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    profile.displayName.split(' ')[0],
+                                    style: theme.textTheme.labelMedium,
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
 
                     // --- METADANE ---
                     const SizedBox(height: 20),
