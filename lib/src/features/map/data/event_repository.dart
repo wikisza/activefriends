@@ -1,16 +1,14 @@
 import 'package:activefriends/src/features/map/data/event_api_client.dart';
 import 'package:activefriends/src/features/map/domain/event_models.dart';
 import 'package:activefriends/src/models/event.dart' as model;
+import 'package:activefriends/src/models/topic_catalog.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 abstract class EventRepository {
-  Future<List<EventPin>> fetchPins({
-    String? query,
-    List<String>? topics,
-  });
+  Future<List<EventPin>> fetchPins({String? query, List<String>? topics});
 
-  Future<void> joinEvent(String eventId);
+  Future<void> joinEvent(String eventId, {String role});
 
   Future<void> askQuestion(String eventId, String question);
 
@@ -20,8 +18,10 @@ abstract class EventRepository {
   /// Wymaga zalogowanego użytkownika (auth.uid() = organizer_id).
   /// [badges] – opcjonalna lista odznak (PILNE, TYLKO ZWERYFIKOWANI itp.)
   /// zapisywanych do tabeli `event_badges`.
-  Future<void> createEvent(model.Event event,
-      {List<String> badges = const <String>[]});
+  Future<void> createEvent(
+    model.Event event, {
+    List<String> badges = const <String>[],
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -34,16 +34,13 @@ class ApiEventRepository implements EventRepository {
   final EventApiClient apiClient;
 
   @override
-  Future<List<EventPin>> fetchPins({
-    String? query,
-    List<String>? topics,
-  }) {
+  Future<List<EventPin>> fetchPins({String? query, List<String>? topics}) {
     return apiClient.fetchPins(query: query, topics: topics);
   }
 
   @override
-  Future<void> joinEvent(String eventId) {
-    return apiClient.joinEvent(eventId);
+  Future<void> joinEvent(String eventId, {String role = 'member'}) {
+    return apiClient.joinEvent(eventId, role: role);
   }
 
   @override
@@ -57,8 +54,10 @@ class ApiEventRepository implements EventRepository {
   }
 
   @override
-  Future<void> createEvent(model.Event event,
-      {List<String> badges = const <String>[]}) {
+  Future<void> createEvent(
+    model.Event event, {
+    List<String> badges = const <String>[],
+  }) {
     throw UnimplementedError(
       'Użyj SupabaseEventRepository.createEvent() zamiast ApiEventRepository.',
     );
@@ -114,7 +113,8 @@ class SupabaseEventRepository implements EventRepository {
           if (id.isEmpty) {
             continue;
           }
-          final int levelRaw = (row['verification_level'] as num?)?.toInt() ?? 1;
+          final int levelRaw =
+              (row['verification_level'] as num?)?.toInt() ?? 1;
           final VerificationLevel level = switch (levelRaw) {
             3 => VerificationLevel.level3,
             2 => VerificationLevel.level2,
@@ -134,7 +134,8 @@ class SupabaseEventRepository implements EventRepository {
           .where((String id) => id.isNotEmpty)
           .toSet();
 
-      final Map<String, List<String>> badgesByEventId = <String, List<String>>{};
+      final Map<String, List<String>> badgesByEventId =
+          <String, List<String>>{};
       if (eventIds.isNotEmpty) {
         final List<dynamic> rawBadges = await _client
             .from('event_badges')
@@ -158,64 +159,133 @@ class SupabaseEventRepository implements EventRepository {
       final String normalizedQuery = (query ?? '').trim().toLowerCase();
       final Set<String> topicSet = (topics ?? <String>[]).toSet();
 
-      final List<EventPin> pins = events.map((Map<String, dynamic> row) {
-        final String scenarioRaw = row['scenario']?.toString() ?? '';
-        final EventScenario scenario = switch (scenarioRaw) {
-          'emergency' => EventScenario.emergency,
-          'social' => EventScenario.social,
-          _ => EventScenario.bikeRide,
-        };
+      final List<EventPin> pins = events
+          .map((Map<String, dynamic> row) {
+            final String scenarioRaw = row['scenario']?.toString() ?? '';
+            final EventScenario scenario = switch (scenarioRaw) {
+              'emergency' => EventScenario.emergency,
+              'social' => EventScenario.social,
+              _ => EventScenario.bikeRide,
+            };
 
-        final String topic = switch (scenario) {
-          EventScenario.bikeRide => 'Rower',
-          EventScenario.emergency => 'Pomoc',
-          EventScenario.social => 'Ceramika',
-        };
+            final String topic = primaryTopicForScenarioKey(scenarioRaw);
 
-        final String eventId = row['id']?.toString() ?? 'unknown';
-        final String organizerId = row['organizer_id']?.toString() ?? 'unknown';
-        final String organizerFallback = organizerId.length > 8
-            ? 'Uzytkownik ${organizerId.substring(0, 8)}'
-            : 'Uzytkownik';
-        final UserProfile organizer = organizersById[organizerId] ??
-            UserProfile(
-              id: organizerId,
-              displayName: organizerFallback,
-              verificationLevel: VerificationLevel.level1,
+            final String eventId = row['id']?.toString() ?? 'unknown';
+            final String organizerId =
+                row['organizer_id']?.toString() ?? 'unknown';
+            final String organizerFallback = organizerId.length > 8
+                ? 'Uzytkownik ${organizerId.substring(0, 8)}'
+                : 'Uzytkownik';
+            final UserProfile organizer =
+                organizersById[organizerId] ??
+                UserProfile(
+                  id: organizerId,
+                  displayName: organizerFallback,
+                  verificationLevel: VerificationLevel.level1,
+                );
+
+            final double lat = (row['lat'] as num?)?.toDouble() ?? 53.1235;
+            final double lng = (row['lng'] as num?)?.toDouble() ?? 18.0084;
+
+            return EventPin(
+              id: eventId,
+              title: row['title']?.toString() ?? 'Bez nazwy',
+              subtitle: row['subtitle']?.toString() ?? 'Brak opisu',
+              location: LatLng(lat, lng),
+              topic: topic,
+              organizer: organizer,
+              scenario: scenario,
+              badges: badgesByEventId[eventId] ?? <String>[],
             );
-
-        final double lat = (row['lat'] as num?)?.toDouble() ?? 53.1235;
-        final double lng = (row['lng'] as num?)?.toDouble() ?? 18.0084;
-
-        return EventPin(
-          id: eventId,
-          title: row['title']?.toString() ?? 'Bez nazwy',
-          subtitle: row['subtitle']?.toString() ?? 'Brak opisu',
-          location: LatLng(lat, lng),
-          topic: topic,
-          organizer: organizer,
-          scenario: scenario,
-          badges: badgesByEventId[eventId] ?? <String>[],
-        );
-      }).where((EventPin item) {
-        final bool queryMatch = normalizedQuery.isEmpty ||
-            item.title.toLowerCase().contains(normalizedQuery) ||
-            item.subtitle.toLowerCase().contains(normalizedQuery);
-        final bool topicMatch = topicSet.isEmpty || topicSet.contains(item.topic);
-        return queryMatch && topicMatch;
-      }).toList(growable: false);
+          })
+          .where((EventPin item) {
+            final bool queryMatch =
+                normalizedQuery.isEmpty ||
+                item.title.toLowerCase().contains(normalizedQuery) ||
+                item.subtitle.toLowerCase().contains(normalizedQuery);
+            final String scenarioKey = switch (item.scenario) {
+              EventScenario.emergency => 'emergency',
+              EventScenario.social => 'social',
+              EventScenario.bikeRide => 'bikeRide',
+            };
+            final bool topicMatch = matchesTopicFilters(
+              selectedTopics: topicSet,
+              scenarioKey: scenarioKey,
+              fallbackTopic: item.topic,
+            );
+            return queryMatch && topicMatch;
+          })
+          .toList(growable: false);
 
       return pins;
     } on PostgrestException catch (e) {
-      throw Exception('Blad bazy danych podczas pobierania wydarzen: ${e.message}');
+      throw Exception(
+        'Blad bazy danych podczas pobierania wydarzen: ${e.message}',
+      );
     } catch (_) {
       throw Exception('Blad polaczenia: Nie udalo sie pobrac wydarzen.');
     }
   }
 
   @override
-  Future<void> joinEvent(String eventId) async {
-    // TODO: zaimplementuj dołączanie do wydarzenia
+  Future<void> joinEvent(String eventId, {String role = 'member'}) async {
+    final User? user = _client.auth.currentUser;
+    if (user == null) {
+      throw Exception('Musisz być zalogowany, aby dołączyć do wydarzenia.');
+    }
+
+    final String normalizedRole = switch (role) {
+      'helper' => 'helper',
+      'organizer' => 'organizer',
+      _ => 'member',
+    };
+
+    try {
+      final Map<String, dynamic>? eventRow = await _client
+          .from('events')
+          .select('id,organizer_id')
+          .eq('id', eventId)
+          .maybeSingle();
+
+      if (eventRow == null) {
+        throw Exception('To wydarzenie już nie istnieje.');
+      }
+
+      final String organizerId = eventRow['organizer_id']?.toString() ?? '';
+      if (organizerId == user.id) {
+        throw Exception('Jesteś organizatorem tego wydarzenia.');
+      }
+
+      final Map<String, dynamic>? existingParticipant = await _client
+          .from('event_participants')
+          .select('role')
+          .eq('event_id', eventId)
+          .eq('profile_id', user.id)
+          .maybeSingle();
+
+      if (existingParticipant != null) {
+        final String existingRole =
+            existingParticipant['role']?.toString() ?? normalizedRole;
+        if (existingRole == normalizedRole) {
+          throw Exception('Już dołączyłeś do tego wydarzenia.');
+        }
+
+        await _client
+            .from('event_participants')
+            .update(<String, dynamic>{'role': normalizedRole})
+            .eq('event_id', eventId)
+            .eq('profile_id', user.id);
+        return;
+      }
+
+      await _client.from('event_participants').insert(<String, dynamic>{
+        'event_id': eventId,
+        'profile_id': user.id,
+        'role': normalizedRole,
+      });
+    } on PostgrestException catch (e) {
+      throw Exception('Błąd bazy danych podczas dołączania: ${e.message}');
+    }
   }
 
   @override
@@ -237,46 +307,66 @@ class SupabaseEventRepository implements EventRepository {
   ///
   /// Rzuca [Exception] z polskim komunikatem przy błędzie bazy lub połączenia.
   @override
-  Future<void> createEvent(model.Event event,
-      {List<String> badges = const <String>[]}) async {
+  Future<void> createEvent(
+    model.Event event, {
+    List<String> badges = const <String>[],
+  }) async {
     // WKT dla PostGIS – gotowe gdy dodasz kolumnę geography(POINT,4326)
     final String pointWkt = 'POINT(${event.lng} ${event.lat})';
 
     try {
       // .select('id') zwraca uuid wstawionego wiersza potrzebny do odznak
-      final List<dynamic> inserted =
-          await _client.from('events').insert(<String, dynamic>{
-        'title': event.title,
-        if (event.subtitle != null) 'subtitle': event.subtitle,
-        if (event.description != null) 'description': event.description,
-        'scenario': event.scenario.name,
-        'status': event.status.name,
-        'organizer_id': event.organizerId,
-        'lat': event.lat,
-        'lng': event.lng,
-        // 'location': pointWkt, // odkomentuj po: ALTER TABLE events ADD COLUMN location geography(POINT,4326);
-        'city': event.city,
-        if (event.startsAt != null)
-          'starts_at': event.startsAt!.toIso8601String(),
-        if (event.endsAt != null) 'ends_at': event.endsAt!.toIso8601String(),
-        if (event.photoUrl != null) 'photo_url': event.photoUrl,
-      }).select('id');
+      final List<dynamic> inserted = await _client
+          .from('events')
+          .insert(<String, dynamic>{
+            'title': event.title,
+            if (event.subtitle != null) 'subtitle': event.subtitle,
+            if (event.description != null) 'description': event.description,
+            'scenario': event.scenario.name,
+            'status': event.status.name,
+            'organizer_id': event.organizerId,
+            'lat': event.lat,
+            'lng': event.lng,
+            // 'location': pointWkt, // odkomentuj po: ALTER TABLE events ADD COLUMN location geography(POINT,4326);
+            'city': event.city,
+            if (event.startsAt != null)
+              'starts_at': event.startsAt!.toIso8601String(),
+            if (event.endsAt != null)
+              'ends_at': event.endsAt!.toIso8601String(),
+            if (event.photoUrl != null) 'photo_url': event.photoUrl,
+          })
+          .select('id');
 
       // Wstaw odznaki do event_badges jeśli podano
       if (badges.isNotEmpty && inserted.isNotEmpty) {
         final String eventId =
             (inserted.first as Map<String, dynamic>)['id'] as String;
-        await _client.from('event_badges').insert(
-          badges
-              .map<Map<String, dynamic>>(
-                (String badge) => <String, dynamic>{
-                  'event_id': eventId,
-                  'badge_code': badge.toLowerCase().replaceAll(' ', '_'),
-                  'badge_label': badge,
-                },
-              )
-              .toList(growable: false),
-        );
+        await _client.from('event_participants').insert(<String, dynamic>{
+          'event_id': eventId,
+          'profile_id': event.organizerId,
+          'role': 'organizer',
+        });
+        await _client
+            .from('event_badges')
+            .insert(
+              badges
+                  .map<Map<String, dynamic>>(
+                    (String badge) => <String, dynamic>{
+                      'event_id': eventId,
+                      'badge_code': badge.toLowerCase().replaceAll(' ', '_'),
+                      'badge_label': badge,
+                    },
+                  )
+                  .toList(growable: false),
+            );
+      } else if (inserted.isNotEmpty) {
+        final String eventId =
+            (inserted.first as Map<String, dynamic>)['id'] as String;
+        await _client.from('event_participants').insert(<String, dynamic>{
+          'event_id': eventId,
+          'profile_id': event.organizerId,
+          'role': 'organizer',
+        });
       }
     } on PostgrestException catch (e) {
       throw Exception('Błąd bazy danych: ${e.message}');

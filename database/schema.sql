@@ -8,6 +8,7 @@ create table if not exists profiles (
   display_name text not null,
   verification_level smallint not null default 1 check (verification_level between 1 and 3),
   avatar_url text,
+  subscribed_topics text[] not null default '{}'::text[],
   created_at timestamptz not null default now()
 );
 

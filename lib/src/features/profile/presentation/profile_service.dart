@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:activefriends/src/models/profile.dart';
+import 'package:activefriends/src/models/topic_catalog.dart';
 
 class ProfileService {
   ProfileService() : _client = Supabase.instance.client;
@@ -33,6 +34,23 @@ class ProfileService {
         .eq('id', user.id);
   }
 
+  Future<void> updateSubscribedTopics(List<String> topics) async {
+    final User? user = _client.auth.currentUser;
+    if (user == null) return;
+
+    final Set<String> allowed = kSupportedTopics.toSet();
+    final List<String> normalizedTopics = topics
+        .map((String item) => item.trim())
+        .where((String item) => item.isNotEmpty && allowed.contains(item))
+        .toSet()
+        .toList(growable: false);
+
+    await _client
+        .from('profiles')
+        .update(<String, dynamic>{'subscribed_topics': normalizedTopics})
+        .eq('id', user.id);
+  }
+
   // Wgrywanie zdjęcia do Storage
   Future<void> uploadProfilePicture(File imageFile) async {
     final User? user = _client.auth.currentUser;
@@ -43,7 +61,9 @@ class ProfileService {
     const String bucketName = 'avatars'; // Nazwa bucketa w Supabase
 
     // Wgrywamy plik
-    await _client.storage.from(bucketName).upload(
+    await _client.storage
+        .from(bucketName)
+        .upload(
           fileName,
           imageFile,
           fileOptions: const FileOptions(
@@ -53,7 +73,9 @@ class ProfileService {
         );
 
     // Pobieramy publiczny URL
-    final String imageUrl = _client.storage.from(bucketName).getPublicUrl(fileName);
+    final String imageUrl = _client.storage
+        .from(bucketName)
+        .getPublicUrl(fileName);
 
     // Aktualizujemy tabelę profiles
     await _client

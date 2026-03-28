@@ -37,8 +37,8 @@ class EventApiClient {
         .toList(growable: false);
   }
 
-  Future<void> joinEvent(String eventId) async {
-    await _post('/events/$eventId/join', const <String, dynamic>{});
+  Future<void> joinEvent(String eventId, {String role = 'member'}) async {
+    await _post('/events/$eventId/join', <String, dynamic>{'role': role});
   }
 
   Future<void> askQuestion(String eventId, String question) async {
@@ -71,8 +71,8 @@ class EventApiClient {
       _ => EventScenario.bikeRide,
     };
 
-    final String verificationRaw =
-        (row['verificationLevel'] as String? ?? '').toLowerCase();
+    final String verificationRaw = (row['verificationLevel'] as String? ?? '')
+        .toLowerCase();
     final VerificationLevel level = switch (verificationRaw) {
       'level3' => VerificationLevel.level3,
       'level2' => VerificationLevel.level2,
@@ -97,7 +97,9 @@ class EventApiClient {
         verificationLevel: level,
       ),
       scenario: scenario,
-      badges: badgesRaw.map((dynamic e) => e.toString()).toList(growable: false),
+      badges: badgesRaw
+          .map((dynamic e) => e.toString())
+          .toList(growable: false),
       photoLabel: row['photoLabel']?.toString(),
     );
   }
