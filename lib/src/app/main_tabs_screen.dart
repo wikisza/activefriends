@@ -56,54 +56,62 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme cs = Theme.of(context).colorScheme;
+
     return Scaffold(
       body: IndexedStack(index: _currentIndex, children: _tabs),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (int index) {
-          if (index == _chatTabIndex) {
-            setState(() {
-              _currentIndex = index;
-              _unreadCount = 0;
-            });
-          } else {
-            setState(() => _currentIndex = index);
-          }
-        },
-        destinations: <NavigationDestination>[
-          const NavigationDestination(
-            icon: Icon(Icons.map_outlined),
-            selectedIcon: Icon(Icons.map),
-            label: 'Mapa',
-          ),
-          NavigationDestination(
-            icon: Badge(
-              isLabelVisible: _unreadCount > 0,
-              label: _unreadCount > 9
-                  ? const Text('9+')
-                  : Text('$_unreadCount'),
-              child: const Icon(Icons.chat_bubble_outline),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: cs.surface,
+          border: Border(top: BorderSide(color: cs.outlineVariant)),
+        ),
+        child: NavigationBar(
+          selectedIndex: _currentIndex,
+          onDestinationSelected: (int index) {
+            if (index == _chatTabIndex) {
+              setState(() {
+                _currentIndex = index;
+                _unreadCount = 0;
+              });
+            } else {
+              setState(() => _currentIndex = index);
+            }
+          },
+          destinations: <NavigationDestination>[
+            const NavigationDestination(
+              icon: Icon(Icons.map_outlined),
+              selectedIcon: Icon(Icons.map),
+              label: 'Mapa',
             ),
-            selectedIcon: Badge(
-              isLabelVisible: _unreadCount > 0,
-              label: _unreadCount > 9
-                  ? const Text('9+')
-                  : Text('$_unreadCount'),
-              child: const Icon(Icons.chat_bubble),
+            NavigationDestination(
+              icon: Badge(
+                isLabelVisible: _unreadCount > 0,
+                label: _unreadCount > 9
+                    ? const Text('9+')
+                    : Text('$_unreadCount'),
+                child: const Icon(Icons.chat_bubble_outline),
+              ),
+              selectedIcon: Badge(
+                isLabelVisible: _unreadCount > 0,
+                label: _unreadCount > 9
+                    ? const Text('9+')
+                    : Text('$_unreadCount'),
+                child: const Icon(Icons.chat_bubble),
+              ),
+              label: 'Czat',
             ),
-            label: 'Czat',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.forum_outlined),
-            selectedIcon: Icon(Icons.forum),
-            label: 'Forum',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Profil',
-          ),
-        ],
+            const NavigationDestination(
+              icon: Icon(Icons.forum_outlined),
+              selectedIcon: Icon(Icons.forum),
+              label: 'Forum',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person),
+              label: 'Profil',
+            ),
+          ],
+        ),
       ),
     );
   }

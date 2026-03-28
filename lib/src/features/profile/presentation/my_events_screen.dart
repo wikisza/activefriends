@@ -1,3 +1,4 @@
+import 'package:activefriends/src/app/theme/app_palette.dart';
 import 'package:activefriends/src/features/profile/presentation/event_details_screen.dart';
 import 'package:activefriends/src/features/profile/presentation/profile_service.dart';
 import 'package:activefriends/src/models/event.dart'; // upewnij się, że ścieżka jest poprawna
@@ -40,8 +41,6 @@ class _MyEventsScreenState extends State<MyEventsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
       appBar: AppBar(title: const Text('Moje wydarzenia')),
       body: _isLoading
@@ -68,7 +67,11 @@ class _MyEventsScreenState extends State<MyEventsScreen> {
       // ListView potrzebny, żeby RefreshIndicator działał
       children: [
         SizedBox(height: MediaQuery.of(context).size.height * 0.2),
-        const Icon(Icons.event_busy, size: 80, color: Colors.grey),
+        Icon(
+          Icons.event_busy,
+          size: 80,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
         const SizedBox(height: 16),
         const Center(child: Text('Nie stworzyłeś jeszcze żadnych wydarzeń.')),
       ],
@@ -99,11 +102,9 @@ class _EventTile extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
 
     // Logika koloru i ikony zależnie od scenariusza (taka jak na mapie)
-    final Color scenarioColor = switch (event.scenario) {
-      EventScenario.bikeRide => const Color(0xFF0F7D31),
-      EventScenario.emergency => const Color(0xFFD14343),
-      EventScenario.social => const Color(0xFF7B4AC8),
-    };
+    final Color scenarioColor = AppPalette.scenarioColorByName(
+      event.scenario.name,
+    );
 
     final IconData scenarioIcon = switch (event.scenario) {
       EventScenario.bikeRide => Icons.directions_bike,
@@ -173,7 +174,10 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = status == EventStatus.open ? Colors.green : Colors.grey;
+    final ColorScheme cs = Theme.of(context).colorScheme;
+    final Color color = status == EventStatus.open
+        ? AppPalette.success
+        : cs.onSurfaceVariant;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
