@@ -83,25 +83,4 @@ class AuthService {
   Future<void> signOut() async {
     await _client.auth.signOut();
   }
-
-  Future<Profile?> fetchProfile() async {
-    final User? user = currentUser;
-    if (user == null) return null;
-    final Map<String, dynamic>? row = await _client
-        .from('profiles')
-        .select()
-        .eq('id', user.id)
-        .maybeSingle();
-    if (row == null) return null;
-    return Profile.fromJson(row);
-  }
-
-  Future<void> updateDisplayName(String displayName) async {
-    final User? user = currentUser;
-    if (user == null) return;
-    await _client
-        .from('profiles')
-        .update(<String, dynamic>{'display_name': displayName})
-        .eq('id', user.id);
-  }
 }

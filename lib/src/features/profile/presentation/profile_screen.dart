@@ -3,6 +3,7 @@ import 'package:activefriends/src/models/profile.dart';
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
+import 'package:activefriends/src/features/profile/presentation/profile_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -13,10 +14,11 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final AuthService _authService = AuthService();
+  final ProfileService _profileService = ProfileService();
   Profile? _profile;
   bool _isLoading = true;
   String? _email;
-  File? _localImageFile; // Zmienna trzymająca wybrane zdjęcie
+  File? _localImageFile;
   final ImagePicker _picker = ImagePicker();
 
   @override
@@ -29,7 +31,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _loadProfile() async {
     setState(() => _isLoading = true);
     try {
-      final Profile? p = await _authService.fetchProfile();
+      final Profile? p = await _profileService.fetchProfile();
       if (mounted) setState(() => _profile = p);
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -37,16 +39,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _pickImage() async {
-    // Możesz też użyć ImageSource.camera, żeby zrobić zdjęcie
     final XFile? pickedFile = await _picker.pickImage(source: ImageSource.gallery);
 
-    if (pickedFile != null) {
-      setState(() {
-        _localImageFile = File(pickedFile.path);
-      });
+    if (pickedFile == null) return;
+
+    final File imageFile = File(pickedFile.path);
+
+    setState(() {
+      _localImageFile = imageFile;
+      _isLoading = true;
+    });
+
+    try {
+      await _profileService.uploadProfilePicture(imageFile);
       
-      // TODO: Tutaj wyślij zdjęcie na swój serwer/Firebase za pomocą _authService
-      // _authService.uploadProfilePicture(_localImageFile!);
+      await _loadProfile(); 
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Zdjęcie profilowe zostało zaktualizowane.')),
+        );
+      }
+    } catch (e) {
+      print('BŁĄD SUPABASE: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Błąd: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -82,7 +106,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (newName == null || newName.isEmpty) return;
 
     try {
-      await _authService.updateDisplayName(newName);
+      await _profileService.updateDisplayName(newName);
       await _loadProfile();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
