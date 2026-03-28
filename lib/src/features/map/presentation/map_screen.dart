@@ -1,4 +1,5 @@
 import 'package:activefriends/src/features/auth/data/auth_service.dart';
+import 'package:activefriends/src/features/chat/data/chat_repository.dart';
 import 'package:activefriends/src/features/chat/presentation/chat_thread_screen.dart';
 import 'dart:ui' as ui;
 
@@ -195,6 +196,17 @@ class _MapScreenState extends State<MapScreen>
       return;
     }
 
+    if (!ChatRepository.isUuid(event.organizer.id)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Ten organizator nie ma poprawnego konta w aplikacji — czat jest niedostępny.',
+          ),
+        ),
+      );
+      return;
+    }
+
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (BuildContext context) => ChatThreadScreen(
@@ -309,13 +321,12 @@ class _MapScreenState extends State<MapScreen>
   }
 
   Future<void> _showAddEventSheet() async {
-    final LatLng location = _tappedLocation ?? _bydgoszcz;
     final bool? created = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (_) => AddEventSheet(
-        location: location,
+        location: _tappedLocation,
         repository: SupabaseEventRepository(),
       ),
     );
