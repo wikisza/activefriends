@@ -5,6 +5,7 @@ class ForumComment extends Equatable {
     required this.id,
     required this.topicId,
     required this.authorId,
+    required this.authorName,
     required this.content,
     required this.parentId,
     required this.likes,
@@ -15,6 +16,7 @@ class ForumComment extends Equatable {
   final String id;
   final String topicId;
   final String authorId;
+  final String authorName;
   final String content;
   final String? parentId;
   final int likes;
@@ -22,13 +24,14 @@ class ForumComment extends Equatable {
   final DateTime createdAt;
 
   @override
-  List<Object?> get props => [id, topicId, authorId, content, parentId, likes, dislikes, createdAt];
+  List<Object?> get props => [id, topicId, authorId, authorName, content, parentId, likes, dislikes, createdAt];
 
   factory ForumComment.fromJson(Map<String, dynamic> json) {
     return ForumComment(
       id: json['id'] as String,
       topicId: json['topic_id'] as String,
       authorId: json['author_id'] as String,
+      authorName: json['profiles'] != null ? json['profiles']['display_name'] as String : 'Anonimowy',
       content: json['content'] as String,
       parentId: json['parent_id'] as String?,
       likes: json['likes'] as int,

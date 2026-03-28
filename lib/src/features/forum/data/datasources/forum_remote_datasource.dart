@@ -77,7 +77,7 @@ class ForumRemoteDataSourceImpl implements ForumRemoteDataSource {
   Future<List<ForumComment>> getComments(String topicId) async {
     final response = await _client
         .from('forum_comments')
-        .select()
+        .select('*, profiles(display_name)')
         .eq('topic_id', topicId)
         .order('created_at', ascending: true);
 
@@ -93,6 +93,9 @@ class ForumRemoteDataSourceImpl implements ForumRemoteDataSource {
       'content': content,
       'parent_id': parentId,
     }).select().single();
+
+    // Zwiększ licznik komentarzy dla tematu
+    await _client.rpc('increment_comment_count', params: {'topic_id': topicId});
 
     return ForumComment.fromJson(response);
   }
