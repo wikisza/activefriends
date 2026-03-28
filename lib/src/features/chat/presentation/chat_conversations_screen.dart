@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:activefriends/src/features/chat/data/chat_repository.dart';
 import 'package:activefriends/src/features/chat/domain/conversation_summary.dart';
 import 'package:activefriends/src/features/chat/presentation/chat_thread_screen.dart';
@@ -14,15 +16,26 @@ class ChatConversationsScreen extends StatefulWidget {
 
 class _ChatConversationsScreenState extends State<ChatConversationsScreen> {
   final ChatRepository _repo = ChatRepository();
+  final SupabaseClient _client = Supabase.instance.client;
 
   List<ConversationSummary> _items = <ConversationSummary>[];
   bool _loading = true;
   String? _error;
+  RealtimeChannel? _convChannel;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _subscribeToNewConversations();
+  }
+
+  void _subscribeToNewConversations() {
+    _convChannel = _repo.subscribeToNewConversations(() {
+      if (mounted) {
+        _load();
+      }
+    });
   }
 
   Future<void> _load() async {
@@ -55,12 +68,42 @@ class _ChatConversationsScreenState extends State<ChatConversationsScreen> {
     }
   }
 
+  @override
+  void dispose() {
+    final RealtimeChannel? ch = _convChannel;
+    if (ch != null) {
+      unawaited(_client.removeChannel(ch));
+    }
+    super.dispose();
+  }
+
   String _subtitle(ConversationSummary s) {
     final String? preview = s.lastMessagePreview;
     if (preview != null && preview.isNotEmpty) {
       return preview.length > 80 ? '${preview.substring(0, 80)}…' : preview;
     }
     return 'Brak wiadomości — zacznij rozmowę';
+  }
+
+  Widget _avatar(ConversationSummary s, ColorScheme cs) {
+    final String? url = s.peerAvatarUrl;
+    if (url != null && url.isNotEmpty) {
+      return CircleAvatar(
+        backgroundImage: NetworkImage(url),
+        radius: 24,
+      );
+    }
+    return CircleAvatar(
+      backgroundColor: cs.primaryContainer,
+      foregroundColor: cs.onPrimaryContainer,
+      radius: 24,
+      child: Text(
+        s.peerDisplayName.isNotEmpty
+            ? s.peerDisplayName[0].toUpperCase()
+            : '?',
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
+    );
   }
 
   @override
@@ -147,17 +190,33 @@ class _ChatConversationsScreenState extends State<ChatConversationsScreen> {
                         itemBuilder: (BuildContext context, int index) {
                           final ConversationSummary s = _items[index];
                           return ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: cs.primaryContainer,
-                              foregroundColor: cs.onPrimaryContainer,
-                              child: Text(
-                                s.peerDisplayName.isNotEmpty
-                                    ? s.peerDisplayName[0].toUpperCase()
-                                    : '?',
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 4,
+                            ),
+                            leading: _avatar(s, cs),
+                            title: Text(
+                              s.peerDisplayName,
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                            title: Text(s.peerDisplayName),
-                            subtitle: Text(_subtitle(s)),
+                            subtitle: Text(
+                              _subtitle(s),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: cs.onSurfaceVariant,
+                              ),
+                            ),
+                            trailing: s.lastMessageAt != null
+                                ? Text(
+                                    _formatTime(s.lastMessageAt!),
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: cs.onSurfaceVariant,
+                                    ),
+                                  )
+                                : null,
                             onTap: () {
                               Navigator.of(context)
                                   .push(
@@ -166,6 +225,7 @@ class _ChatConversationsScreenState extends State<ChatConversationsScreen> {
                                       ChatThreadScreen(
                                     peerUserId: s.peerUserId,
                                     peerDisplayName: s.peerDisplayName,
+                                    peerAvatarUrl: s.peerAvatarUrl,
                                     conversationId: s.conversationId,
                                   ),
                                 ),
@@ -177,5 +237,18 @@ class _ChatConversationsScreenState extends State<ChatConversationsScreen> {
                       ),
       ),
     );
+  }
+
+  String _formatTime(DateTime dt) {
+    final DateTime now = DateTime.now();
+    final DateTime local = dt.toLocal();
+    if (local.year == now.year &&
+        local.month == now.month &&
+        local.day == now.day) {
+      return '${local.hour.toString().padLeft(2, '0')}:'
+          '${local.minute.toString().padLeft(2, '0')}';
+    }
+    return '${local.day.toString().padLeft(2, '0')}.'
+        '${local.month.toString().padLeft(2, '0')}';
   }
 }

@@ -8,6 +8,8 @@ import 'package:activefriends/src/features/map/data/route_service.dart';
 import 'package:activefriends/src/features/map/domain/event_models.dart';
 import 'package:activefriends/src/features/map/presentation/widgets/add_event_sheet.dart';
 import 'package:activefriends/src/features/map/presentation/widgets/event_preview_panel.dart';
+import 'package:activefriends/src/features/profile/presentation/profile_service.dart';
+import 'package:activefriends/src/models/topic_catalog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:http/http.dart' as http;
@@ -32,9 +34,11 @@ class _MapScreenState extends State<MapScreen>
   late final RouteService _routeService;
   late final AnimationController _dropPinController;
   final AuthService _authService = AuthService();
+  final ProfileService _profileService = ProfileService();
 
-  final List<String> _availableTopics = const <String>['Rower', 'Ceramika', 'Pomoc'];
-  Set<String> _selectedTopics = <String>{'Rower', 'Ceramika', 'Pomoc'};
+  final List<String> _availableTopics = kSupportedTopics;
+  Set<String> _subscribedTopics = <String>{};
+  Set<String> _selectedTopics = <String>{};
 
   List<EventPin> _pins = <EventPin>[];
   List<LatLng> _bikeRoute = <LatLng>[];
@@ -55,8 +59,7 @@ class _MapScreenState extends State<MapScreen>
     );
 
     _repository = SupabaseEventRepository();
-
-    _loadPins();
+    _loadProfileTopics();
   }
 
   @override
@@ -68,6 +71,102 @@ class _MapScreenState extends State<MapScreen>
   }
 
   bool get _isNightMode => _selectedEvent?.scenario == EventScenario.emergency;
+
+  Future<void> _loadProfileTopics() async {
+    try {
+      final profile = await _profileService.fetchProfile();
+      if (!mounted) {
+        return;
+      }
+
+      final Set<String> subscribedTopics =
+          profile?.subscribedTopics
+              .where((String item) => _availableTopics.contains(item))
+              .toSet() ??
+          <String>{};
+
+      setState(() {
+        _subscribedTopics = subscribedTopics;
+        _selectedTopics = <String>{};
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _subscribedTopics = <String>{};
+        _selectedTopics = <String>{};
+      });
+    }
+
+    await _loadPins();
+  }
+
+  List<String> get _orderedSelectedTopics => orderedTopics(_selectedTopics);
+
+  List<String> get _orderedSubscribedTopics => orderedTopics(_subscribedTopics);
+
+  String get _filterSummary {
+    if (_selectedTopics.isEmpty ||
+        _selectedTopics.length == _availableTopics.length) {
+      return 'Wszystkie aktywnosci';
+    }
+
+    final List<String> selected = _orderedSelectedTopics;
+    if (selected.length <= 2) {
+      return selected.join(', ');
+    }
+
+    return '${selected.length} filtry aktywnosci';
+  }
+
+  String get _subscriptionSummary {
+    final List<String> subscribed = _orderedSubscribedTopics;
+    if (subscribed.isEmpty) {
+      return 'Brak subskrypcji';
+    }
+    if (subscribed.length <= 3) {
+      return subscribed.join(', ');
+    }
+    return '${subscribed.length} subskrypcji';
+  }
+
+  Widget _buildTopicLabel(String topic, {required bool isSubscribed}) {
+    return Row(
+      children: <Widget>[
+        Icon(
+          isSubscribed ? Icons.star_rounded : Icons.star_border_rounded,
+          size: 18,
+          color: isSubscribed
+              ? const Color(0xFFF1B500)
+              : Theme.of(context).colorScheme.outline,
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: Text(topic)),
+      ],
+    );
+  }
+
+  Future<void> _saveSubscribedTopics(Set<String> topics) async {
+    final Set<String> nextTopics = topics.intersection(
+      _availableTopics.toSet(),
+    );
+    try {
+      await _profileService.updateSubscribedTopics(
+        nextTopics.toList(growable: false),
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() => _subscribedTopics = nextTopics);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nie udalo sie zapisac subskrypcji.')),
+        );
+      }
+    }
+  }
 
   Future<void> _loadPins() async {
     setState(() => _isLoading = true);
@@ -116,7 +215,7 @@ class _MapScreenState extends State<MapScreen>
     }
   }
 
-  Future<void> _joinEvent() async {
+  Future<void> _joinEvent({String role = 'member'}) async {
     final EventPin? event = _selectedEvent;
     if (event == null) {
       return;
@@ -124,34 +223,25 @@ class _MapScreenState extends State<MapScreen>
 
     setState(() => _isActionBusy = true);
     try {
-      await _repository.joinEvent(event.id);
+      await _repository.joinEvent(event.id, role: role);
       if (!mounted) {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Dolaczenie zapisane.')),
+        SnackBar(
+          content: Text(
+            role == 'helper'
+                ? 'Zgłoszono Cię jako osobę do pomocy.'
+                : 'Dołączyłeś do wydarzenia.',
+          ),
+        ),
       );
-    } finally {
-      if (mounted) {
-        setState(() => _isActionBusy = false);
-      }
-    }
-  }
-
-  Future<void> _askQuestion() async {
-    final EventPin? event = _selectedEvent;
-    if (event == null) {
-      return;
-    }
-
-    setState(() => _isActionBusy = true);
-    try {
-      await _repository.askQuestion(event.id, 'Czy sa wolne miejsca?');
+    } catch (e) {
       if (!mounted) {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pytanie wyslane.')),
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
       );
     } finally {
       if (mounted) {
@@ -298,8 +388,7 @@ class _MapScreenState extends State<MapScreen>
                 _bikeRoute = <LatLng>[];
               }),
               onJoin: _joinEvent,
-              onAskQuestion: _askQuestion,
-              onHelp: _joinEvent,
+              onHelp: () => _joinEvent(role: 'helper'),
               onReportLocal: _reportLocal,
               onChatWithOrganizer: _openOrganizerChat,
             ),
@@ -373,45 +462,104 @@ class _MapScreenState extends State<MapScreen>
                 Expanded(
                   child: Container(
                     decoration: _overlayDecoration(),
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: 'Subskrybowane tematy',
-                        isExpanded: true,
-                        items: <DropdownMenuItem<String>>[
-                          DropdownMenuItem<String>(
-                            value: 'Subskrybowane tematy',
-                            child: Row(
-                              children: <Widget>[
-                                const Icon(Icons.directions_bike, size: 18),
-                                const SizedBox(width: 6),
-                                const Icon(Icons.palette_outlined, size: 18),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    _selectedTopics.isEmpty
-                                        ? 'Subskrybowane tematy'
-                                        : _selectedTopics.join(', '),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                        onChanged: (_) {},
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(14),
                         onTap: _showTopicSelector,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 13,
+                          ),
+                          child: Row(
+                            children: <Widget>[
+                              const Icon(Icons.filter_alt_outlined, size: 20),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: <Widget>[
+                                    Text(
+                                      'Filtry aktywnosci',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.labelMedium,
+                                    ),
+                                    Text(
+                                      _filterSummary,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodyMedium,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(Icons.expand_more),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
-                Container(
-                  decoration: _overlayDecoration(),
-                  child: IconButton(
-                    onPressed: _showTopicSelector,
-                    icon: const Icon(Icons.filter_alt_outlined),
-                    tooltip: 'Filtr',
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 168),
+                  child: Container(
+                    decoration: _overlayDecoration(),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: _showSubscriptionsSheet,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 13,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              Icon(
+                                _subscribedTopics.isEmpty
+                                    ? Icons.star_border_rounded
+                                    : Icons.star_rounded,
+                                color: _subscribedTopics.isEmpty
+                                    ? Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant
+                                    : const Color(0xFFF1B500),
+                              ),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: <Widget>[
+                                    Text(
+                                      'Subskrypcje',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.labelMedium,
+                                    ),
+                                    Text(
+                                      _subscriptionSummary,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodySmall,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -437,28 +585,30 @@ class _MapScreenState extends State<MapScreen>
   }
 
   List<Marker> _buildMarkers() {
-    return _pins.map((EventPin item) {
-      final bool selected = _selectedEvent?.id == item.id;
-      final Color color = switch (item.scenario) {
-        EventScenario.bikeRide => const Color(0xFF0F7D31),
-        EventScenario.emergency => const Color(0xFFD14343),
-        EventScenario.social => const Color(0xFF7B4AC8),
-      };
+    return _pins
+        .map((EventPin item) {
+          final bool selected = _selectedEvent?.id == item.id;
+          final Color color = switch (item.scenario) {
+            EventScenario.bikeRide => const Color(0xFF0F7D31),
+            EventScenario.emergency => const Color(0xFFD14343),
+            EventScenario.social => const Color(0xFF7B4AC8),
+          };
 
-      return Marker(
-        width: 58,
-        height: 58,
-        point: item.location,
-        alignment: Alignment.topCenter,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => _selectEvent(item),
-          child: item.scenario == EventScenario.emergency
-              ? _PulsingPin(color: color, selected: selected)
-              : _PinIcon(color: color, selected: selected),
-        ),
-      );
-    }).toList(growable: false);
+          return Marker(
+            width: 58,
+            height: 58,
+            point: item.location,
+            alignment: Alignment.topCenter,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _selectEvent(item),
+              child: item.scenario == EventScenario.emergency
+                  ? _PulsingPin(color: color, selected: selected)
+                  : _PinIcon(color: color, selected: selected),
+            ),
+          );
+        })
+        .toList(growable: false);
   }
 
   Future<void> _showTopicSelector() async {
@@ -466,52 +616,132 @@ class _MapScreenState extends State<MapScreen>
 
     final Set<String>? result = await showModalBottomSheet<Set<String>>(
       context: context,
+      isScrollControlled: true,
       showDragHandle: true,
       builder: (BuildContext context) {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setBottomState) {
-            return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 6, 16, 18),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    const Text(
-                      'Subskrybowane tematy',
-                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                    ),
-                    const SizedBox(height: 12),
-                    ..._availableTopics.map((String topic) {
-                      return CheckboxListTile(
-                        value: draft.contains(topic),
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(topic),
-                        controlAffinity: ListTileControlAffinity.leading,
-                        onChanged: (bool? checked) {
-                          setBottomState(() {
-                            if (checked == true) {
-                              draft.add(topic);
-                            } else {
-                              draft.remove(topic);
-                            }
-                          });
-                        },
-                      );
-                    }),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () => Navigator.of(context).pop(draft),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF1E8E3E),
-                          foregroundColor: Colors.white,
+            return FractionallySizedBox(
+              heightFactor: 0.82,
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      const Text(
+                        'Filtry aktywnosci',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
                         ),
-                        child: const Text('Zastosuj filtr'),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 6),
+                      Text(
+                        'Subskrypcje sa osobne. Filtry decyduja, co teraz widzisz na mapie.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Twoje subskrypcje',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 8),
+                      if (_orderedSubscribedTopics.isEmpty)
+                        Text(
+                          'Brak subskrypcji. Dodaj je gwiazdka obok paska filtrow.',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        )
+                      else
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _orderedSubscribedTopics
+                              .map((String topic) {
+                                return FilterChip(
+                                  label: Text(topic),
+                                  avatar: const Icon(
+                                    Icons.star_rounded,
+                                    size: 16,
+                                  ),
+                                  selected: draft.contains(topic),
+                                  onSelected: (bool selected) {
+                                    setBottomState(() {
+                                      if (selected) {
+                                        draft.add(topic);
+                                      } else {
+                                        draft.remove(topic);
+                                      }
+                                    });
+                                  },
+                                );
+                              })
+                              .toList(growable: false),
+                        ),
+                      const SizedBox(height: 16),
+                      const Divider(height: 1),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Wszystkie aktywnosci',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: ListView(
+                          padding: const EdgeInsets.only(right: 12),
+                          children: _availableTopics
+                              .map((String topic) {
+                                final bool isSubscribed = _subscribedTopics
+                                    .contains(topic);
+                                return CheckboxListTile(
+                                  value: draft.contains(topic),
+                                  contentPadding: EdgeInsets.zero,
+                                  title: _buildTopicLabel(
+                                    topic,
+                                    isSubscribed: isSubscribed,
+                                  ),
+                                  controlAffinity:
+                                      ListTileControlAffinity.leading,
+                                  onChanged: (bool? checked) {
+                                    setBottomState(() {
+                                      if (checked == true) {
+                                        draft.add(topic);
+                                      } else {
+                                        draft.remove(topic);
+                                      }
+                                    });
+                                  },
+                                );
+                              })
+                              .toList(growable: false),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () {
+                                Navigator.of(context).pop(<String>{});
+                              },
+                              child: const Text('Wyczysc filtry'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () => Navigator.of(context).pop(draft),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF1E8E3E),
+                                foregroundColor: Colors.white,
+                              ),
+                              child: const Text('Zastosuj filtry'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -526,6 +756,95 @@ class _MapScreenState extends State<MapScreen>
 
     setState(() => _selectedTopics = result);
     await _loadPins();
+  }
+
+  Future<void> _showSubscriptionsSheet() async {
+    final Set<String> draft = Set<String>.from(_subscribedTopics);
+
+    final Set<String>? result = await showModalBottomSheet<Set<String>>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setBottomState) {
+            return FractionallySizedBox(
+              heightFactor: 0.78,
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      const Text(
+                        'Twoje subskrypcje',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Subskrypcje pokazuja Twoje ulubione aktywnosci. Nie zmieniaja filtrow mapy, dopoki sam ich nie zaznaczysz.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 14),
+                      Expanded(
+                        child: ListView(
+                          padding: const EdgeInsets.only(right: 12),
+                          children: _availableTopics
+                              .map((String topic) {
+                                final bool isSubscribed = draft.contains(topic);
+                                return CheckboxListTile(
+                                  value: isSubscribed,
+                                  contentPadding: EdgeInsets.zero,
+                                  title: _buildTopicLabel(
+                                    topic,
+                                    isSubscribed: isSubscribed,
+                                  ),
+                                  controlAffinity:
+                                      ListTileControlAffinity.leading,
+                                  onChanged: (bool? checked) {
+                                    setBottomState(() {
+                                      if (checked == true) {
+                                        draft.add(topic);
+                                      } else {
+                                        draft.remove(topic);
+                                      }
+                                    });
+                                  },
+                                );
+                              })
+                              .toList(growable: false),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.of(context).pop(draft),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFF1B500),
+                            foregroundColor: Colors.black,
+                          ),
+                          child: const Text('Zapisz subskrypcje'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (result == null) {
+      return;
+    }
+
+    await _saveSubscribedTopics(result);
   }
 }
 
@@ -545,7 +864,11 @@ class _PinIcon extends StatelessWidget {
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white, width: 4),
         boxShadow: const <BoxShadow>[
-          BoxShadow(color: Color(0x44000000), blurRadius: 9, offset: Offset(0, 4)),
+          BoxShadow(
+            color: Color(0x44000000),
+            blurRadius: 9,
+            offset: Offset(0, 4),
+          ),
         ],
       ),
       child: const Icon(Icons.place, color: Colors.white, size: 26),
@@ -616,7 +939,7 @@ class _PulsingPinState extends State<_PulsingPin>
 
 class _DropPinMarker extends AnimatedWidget {
   const _DropPinMarker({required AnimationController animation})
-      : super(listenable: animation);
+    : super(listenable: animation);
 
   static const Color _pinColor = Color(0xFF1E8E3E);
 
@@ -677,8 +1000,11 @@ class _DropPinMarker extends AnimatedWidget {
                     ),
                   ],
                 ),
-                child: const Icon(Icons.add_location_alt,
-                    color: Colors.white, size: 20),
+                child: const Icon(
+                  Icons.add_location_alt,
+                  color: Colors.white,
+                  size: 20,
+                ),
               ),
               // Ogon pinezki
               CustomPaint(

@@ -2,9 +2,11 @@ import 'dart:typed_data';
 
 import 'package:activefriends/src/features/auth/data/auth_service.dart';
 import 'package:activefriends/src/models/profile.dart';
+import 'package:activefriends/src/models/topic_catalog.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:activefriends/src/features/profile/presentation/profile_service.dart';
+import 'package:activefriends/src/features/profile/presentation/my_events_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -21,6 +23,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _email;
   Uint8List? _localImageBytes;
   bool _isUploadingAvatar = false;
+  bool _isSavingTopics = false;
   final ImagePicker _picker = ImagePicker();
 
   @override
@@ -78,11 +81,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              e.toString().replaceFirst('Exception: ', ''),
-            ),
-          ),
+          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
         );
       }
     } finally {
@@ -93,8 +92,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _editDisplayName() async {
-    final TextEditingController ctrl =
-        TextEditingController(text: _profile?.displayName ?? '');
+    final TextEditingController ctrl = TextEditingController(
+      text: _profile?.displayName ?? '',
+    );
     final String? newName = await showDialog<String>(
       context: context,
       builder: (BuildContext ctx) => AlertDialog(
@@ -144,10 +144,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await _authService.signOut();
   }
 
+  Future<void> _saveSubscribedTopics(Set<String> topics) async {
+    setState(() => _isSavingTopics = true);
+    try {
+      final List<String> nextTopics = topics.toList(growable: false);
+      await _profileService.updateSubscribedTopics(nextTopics);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _profile = _profile?.copyWith(subscribedTopics: nextTopics);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Subskrypcje tematów zapisane.')),
+      );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nie udało się zapisać subskrypcji.')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSavingTopics = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final ColorScheme cs = theme.colorScheme;
+    final Set<String> subscribedTopics =
+        (_profile?.subscribedTopics ?? const <String>[]).toSet();
 
     return Scaffold(
       appBar: AppBar(
@@ -167,9 +197,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: <Widget>[
                 const SizedBox(height: 12),
                 Center(
-                  child: GestureDetector( // Pozwala kliknąć w cały avatar
+                  child: GestureDetector(
+                    // Pozwala kliknąć w cały avatar
                     onTap: _pickImage,
-                    child: Stack( // Odpowiednik FrameLayout
+                    child: Stack(
+                      // Odpowiednik FrameLayout
                       alignment: Alignment.bottomRight,
                       children: [
                         CircleAvatar(
@@ -178,14 +210,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           backgroundImage: _localImageBytes != null
                               ? MemoryImage(_localImageBytes!)
                               : (_profile?.avatarUrl != null &&
-                                      _profile!.avatarUrl!.trim().isNotEmpty
-                                  ? NetworkImage(_profile!.avatarUrl!)
-                                  : null),
-                          child: (_localImageBytes == null &&
+                                        _profile!.avatarUrl!.trim().isNotEmpty
+                                    ? NetworkImage(_profile!.avatarUrl!)
+                                    : null),
+                          child:
+                              (_localImageBytes == null &&
                                   (_profile?.avatarUrl == null ||
                                       _profile!.avatarUrl!.trim().isEmpty))
-                              ? Icon(Icons.person,
-                                  size: 48, color: cs.onPrimaryContainer)
+                              ? Icon(
+                                  Icons.person,
+                                  size: 48,
+                                  color: cs.onPrimaryContainer,
+                                )
                               : null,
                         ),
                         // Mała ikonka aparatu w rogu
@@ -195,7 +231,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             color: cs.primary,
                             shape: BoxShape.circle,
                             border: Border.all(
-                                color: theme.scaffoldBackgroundColor, width: 2),
+                              color: theme.scaffoldBackgroundColor,
+                              width: 2,
+                            ),
                           ),
                           child: _isUploadingAvatar
                               ? SizedBox(
@@ -223,8 +261,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     children: <Widget>[
                       Text(
                         _profile?.displayName ?? '—',
-                        style: theme.textTheme.headlineSmall
-                            ?.copyWith(fontWeight: FontWeight.w700),
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       const SizedBox(width: 6),
                       IconButton(
@@ -239,8 +278,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Center(
                     child: Text(
                       _email!,
-                      style: theme.textTheme.bodyMedium
-                          ?.copyWith(color: cs.onSurfaceVariant),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                   ),
                 const SizedBox(height: 8),
@@ -250,6 +290,71 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       'Weryfikacja: poziom ${_profile?.verificationLevel ?? 1}',
                     ),
                     avatar: const Icon(Icons.verified_outlined, size: 18),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Card(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Row(
+                          children: <Widget>[
+                            const Icon(Icons.interests_outlined),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Subskrybowane tematy i hobby',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            if (_isSavingTopics)
+                              const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: kSupportedTopics
+                              .map((String topic) {
+                                final bool isSelected = subscribedTopics
+                                    .contains(topic);
+                                return FilterChip(
+                                  label: Text(topic),
+                                  selected: isSelected,
+                                  onSelected: _isSavingTopics
+                                      ? null
+                                      : (bool selected) {
+                                          final Set<String> next =
+                                              Set<String>.from(
+                                                subscribedTopics,
+                                              );
+                                          if (selected) {
+                                            next.add(topic);
+                                          } else {
+                                            next.remove(topic);
+                                          }
+                                          _saveSubscribedTopics(next);
+                                        },
+                                );
+                              })
+                              .toList(growable: false),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 30),
@@ -265,6 +370,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         subtitle: Text(_email ?? '—'),
                       ),
                       const Divider(height: 1, indent: 16, endIndent: 16),
+                     ListTile(
+                      leading: const Icon(Icons.event_note_outlined),
+                      title: const Text('Moje wydarzenia'),
+                      subtitle: const Text('Lista Twoich aktywności'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (context) => const MyEventsScreen()),
+                        );
+                      },
+                    ),
+                    const Divider(height: 1, indent: 16, endIndent: 16),
                       ListTile(
                         leading: const Icon(Icons.badge_outlined),
                         title: const Text('Pseudonim'),
@@ -275,8 +392,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       const Divider(height: 1, indent: 16, endIndent: 16),
                       ListTile(
                         leading: Icon(Icons.logout, color: cs.error),
-                        title:
-                            Text('Wyloguj', style: TextStyle(color: cs.error)),
+                        title: Text(
+                          'Wyloguj',
+                          style: TextStyle(color: cs.error),
+                        ),
                         onTap: _signOut,
                       ),
                     ],
