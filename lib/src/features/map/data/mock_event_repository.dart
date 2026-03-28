@@ -1,5 +1,6 @@
 import 'package:activefriends/src/features/map/data/event_repository.dart';
 import 'package:activefriends/src/features/map/domain/event_models.dart';
+import 'package:activefriends/src/models/event.dart' as event_model;
 import 'package:latlong2/latlong.dart';
 
 class MockEventRepository implements EventRepository {
@@ -81,4 +82,10 @@ class MockEventRepository implements EventRepository {
 
   @override
   Future<void> reportLocal(String eventId) async {}
+
+  @override
+  Future<void> createEvent(event_model.Event event,
+      {List<String> badges = const <String>[]}) async {
+    // Mock: nie zapisuje do bazy danych
+  }
 }

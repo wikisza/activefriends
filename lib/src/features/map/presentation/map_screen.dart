@@ -1,8 +1,9 @@
-import 'package:activefriends/src/features/map/data/event_api_client.dart';
+import 'dart:ui' as ui;
+
 import 'package:activefriends/src/features/map/data/event_repository.dart';
-import 'package:activefriends/src/features/map/data/mock_event_repository.dart';
 import 'package:activefriends/src/features/map/data/route_service.dart';
 import 'package:activefriends/src/features/map/domain/event_models.dart';
+import 'package:activefriends/src/features/map/presentation/widgets/add_event_sheet.dart';
 import 'package:activefriends/src/features/map/presentation/widgets/event_preview_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -16,7 +17,8 @@ class MapScreen extends StatefulWidget {
   State<MapScreen> createState() => _MapScreenState();
 }
 
-class _MapScreenState extends State<MapScreen> {
+class _MapScreenState extends State<MapScreen>
+    with SingleTickerProviderStateMixin {
   static const LatLng _bydgoszcz = LatLng(53.1235, 18.0084);
   static const LatLng _gdansk = LatLng(54.352, 18.6466);
 
@@ -25,6 +27,7 @@ class _MapScreenState extends State<MapScreen> {
   late final http.Client _httpClient;
   late final EventRepository _repository;
   late final RouteService _routeService;
+  late final AnimationController _dropPinController;
 
   final List<String> _availableTopics = const <String>['Rower', 'Ceramika', 'Pomoc'];
   Set<String> _selectedTopics = <String>{'Rower', 'Ceramika', 'Pomoc'};
@@ -32,6 +35,7 @@ class _MapScreenState extends State<MapScreen> {
   List<EventPin> _pins = <EventPin>[];
   List<LatLng> _bikeRoute = <LatLng>[];
   EventPin? _selectedEvent;
+  LatLng? _tappedLocation;
   bool _isLoading = false;
   bool _isActionBusy = false;
 
@@ -41,14 +45,12 @@ class _MapScreenState extends State<MapScreen> {
     _httpClient = http.Client();
     _routeService = RouteService(httpClient: _httpClient);
 
-    const String baseUrl = String.fromEnvironment('API_BASE_URL', defaultValue: '');
-    const bool useApi = bool.fromEnvironment('USE_API', defaultValue: false);
+    _dropPinController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 480),
+    );
 
-    _repository = (useApi && baseUrl.isNotEmpty)
-        ? ApiEventRepository(
-            apiClient: EventApiClient(baseUrl: baseUrl, httpClient: _httpClient),
-          )
-        : MockEventRepository();
+    _repository = SupabaseEventRepository();
 
     _loadPins();
   }
@@ -56,6 +58,7 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _dropPinController.dispose();
     _httpClient.close();
     super.dispose();
   }
@@ -191,7 +194,17 @@ class _MapScreenState extends State<MapScreen> {
                 setState(() {
                   _selectedEvent = null;
                   _bikeRoute = <LatLng>[];
+                  _tappedLocation = null;
                 });
+              },
+              onLongPress: (TapPosition tapPosition, LatLng point) {
+                setState(() {
+                  _selectedEvent = null;
+                  _bikeRoute = <LatLng>[];
+                  _tappedLocation = point;
+                });
+                _dropPinController.forward(from: 0);
+                _showAddEventSheet();
               },
             ),
             children: <Widget>[
@@ -213,6 +226,18 @@ class _MapScreenState extends State<MapScreen> {
                   ],
                 ),
               MarkerLayer(markers: _buildMarkers()),
+              if (_tappedLocation != null)
+                MarkerLayer(
+                  markers: <Marker>[
+                    Marker(
+                      width: 48,
+                      height: 64,
+                      point: _tappedLocation!,
+                      alignment: Alignment.topCenter,
+                      child: _DropPinMarker(animation: _dropPinController),
+                    ),
+                  ],
+                ),
             ],
           ),
           _buildTopOverlay(),
@@ -247,15 +272,33 @@ class _MapScreenState extends State<MapScreen> {
           backgroundColor: const Color(0xFF1E8E3E),
           foregroundColor: Colors.white,
           shape: const CircleBorder(),
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Szybkie dodawanie wydarzenia.')),
-            );
-          },
+          onPressed: _showAddEventSheet,
           child: const Icon(Icons.add, size: 40),
         ),
       ),
     );
+  }
+
+  Future<void> _showAddEventSheet() async {
+    final LatLng location = _tappedLocation ?? _bydgoszcz;
+    final bool? created = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => AddEventSheet(
+        location: location,
+        repository: SupabaseEventRepository(),
+      ),
+    );
+    if (mounted) {
+      setState(() => _tappedLocation = null);
+    }
+    if (created == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Wydarzenie zostało dodane!')),
+      );
+      _loadPins();
+    }
   }
 
   Widget _buildTopOverlay() {
@@ -524,4 +567,106 @@ class _PulsingPinState extends State<_PulsingPin>
       },
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// Drop-pin marker – animacja "upuszczenia" pinezki przy long-press
+// ---------------------------------------------------------------------------
+
+class _DropPinMarker extends AnimatedWidget {
+  const _DropPinMarker({required AnimationController animation})
+      : super(listenable: animation);
+
+  static const Color _pinColor = Color(0xFF1E8E3E);
+
+  @override
+  Widget build(BuildContext context) {
+    final AnimationController ctrl = listenable as AnimationController;
+
+    // Pinezka spada z -40 px do 0 (translacja Y), a cień rośnie
+    final Animation<double> drop = CurvedAnimation(
+      parent: ctrl,
+      curve: Curves.bounceOut,
+    );
+    final Animation<double> shadow = CurvedAnimation(
+      parent: ctrl,
+      curve: Curves.easeOut,
+    );
+
+    final double offsetY = (1 - drop.value) * -40;
+    final double shadowScale = shadow.value;
+
+    return Stack(
+      alignment: Alignment.bottomCenter,
+      clipBehavior: Clip.none,
+      children: <Widget>[
+        // Cień pod pinezką
+        Positioned(
+          bottom: -4,
+          child: Transform.scale(
+            scale: shadowScale,
+            child: Container(
+              width: 18,
+              height: 6,
+              decoration: const BoxDecoration(
+                color: Color(0x44000000),
+                borderRadius: BorderRadius.all(Radius.elliptical(9, 3)),
+              ),
+            ),
+          ),
+        ),
+        // Pinezka
+        Transform.translate(
+          offset: Offset(0, offsetY),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: _pinColor,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 3),
+                  boxShadow: const <BoxShadow>[
+                    BoxShadow(
+                      color: Color(0x55000000),
+                      blurRadius: 8,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.add_location_alt,
+                    color: Colors.white, size: 20),
+              ),
+              // Ogon pinezki
+              CustomPaint(
+                size: const Size(14, 10),
+                painter: _PinTailPainter(color: _pinColor),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PinTailPainter extends CustomPainter {
+  const _PinTailPainter({required this.color});
+  final Color color;
+
+  @override
+  void paint(ui.Canvas canvas, ui.Size size) {
+    final ui.Paint paint = ui.Paint()..color = color;
+    final ui.Path path = ui.Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width, 0)
+      ..lineTo(size.width / 2, size.height)
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_PinTailPainter old) => old.color != color;
 }
