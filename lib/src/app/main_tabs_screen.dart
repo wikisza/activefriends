@@ -23,6 +23,8 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
   int _unreadChat = 0;
   int _unreadNotifications = 0;
 
+  final GlobalKey<MapScreenState> _mapKey = GlobalKey<MapScreenState>();
+
   final ChatRepository _chatRepo = ChatRepository();
   final NotificationRepository _notifRepo = NotificationRepository();
   final SupabaseClient _client = Supabase.instance.client;
@@ -34,7 +36,7 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
   static const int _notifTabIndex = 3;
 
   late final List<Widget> _tabs = <Widget>[
-    const MapScreen(),
+    MapScreen(key: _mapKey),
     const ChatConversationsScreen(),
     const ForumScreen(),
     const NotificationsScreen(),
@@ -73,7 +75,10 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
     super.dispose();
   }
 
-  void _onTabSelected(int index) {
+  void _handleTabSelection(int index) {
+    if (index == 0) {
+      _mapKey.currentState?.loadPins();
+    }
     setState(() {
       _currentIndex = index;
       if (index == _chatTabIndex) _unreadChat = 0;
@@ -87,7 +92,7 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
       body: IndexedStack(index: _currentIndex, children: _tabs),
       bottomNavigationBar: AnimatedGradientTabBar(
         selectedIndex: _currentIndex,
-        onTap: _onTabSelected,
+        onTap: _handleTabSelection,
         items: <TabItem>[
           const TabItem(
             icon: Icons.map_outlined,
