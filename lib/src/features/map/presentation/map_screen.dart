@@ -746,33 +746,54 @@ class _MapScreenState extends State<MapScreen>
                       ),
                       const SizedBox(height: 8),
                       Expanded(
-                        child: ListView(
-                          padding: const EdgeInsets.only(right: 12),
-                          children: _availableTopics
-                              .map((String topic) {
-                                final bool isSubscribed = _subscribedTopics
-                                    .contains(topic);
-                                return CheckboxListTile(
-                                  value: draft.contains(topic),
-                                  contentPadding: EdgeInsets.zero,
-                                  title: _buildTopicLabel(
-                                    topic,
-                                    isSubscribed: isSubscribed,
-                                  ),
-                                  controlAffinity:
-                                      ListTileControlAffinity.leading,
-                                  onChanged: (bool? checked) {
-                                    setBottomState(() {
-                                      if (checked == true) {
-                                        draft.add(topic);
-                                      } else {
-                                        draft.remove(topic);
-                                      }
-                                    });
-                                  },
-                                );
-                              })
-                              .toList(growable: false),
+                        child: Builder(
+                          builder: (BuildContext context) {
+                            final List<String> subscribed = _availableTopics
+                                .where(
+                                  (String t) =>
+                                      _subscribedTopics.contains(t),
+                                )
+                                .toList(growable: false);
+                            final List<String> rest = _availableTopics
+                                .where(
+                                  (String t) =>
+                                      !_subscribedTopics.contains(t),
+                                )
+                                .toList(growable: false);
+
+                            Widget tile(String topic) {
+                              return CheckboxListTile(
+                                value: draft.contains(topic),
+                                contentPadding: EdgeInsets.zero,
+                                title: _buildTopicLabel(
+                                  topic,
+                                  isSubscribed: subscribed.contains(topic),
+                                ),
+                                controlAffinity:
+                                    ListTileControlAffinity.leading,
+                                onChanged: (bool? checked) {
+                                  setBottomState(() {
+                                    if (checked == true) {
+                                      draft.add(topic);
+                                    } else {
+                                      draft.remove(topic);
+                                    }
+                                  });
+                                },
+                              );
+                            }
+
+                            return ListView(
+                              padding: const EdgeInsets.only(right: 12),
+                              children: <Widget>[
+                                ...subscribed.map(tile),
+                                if (subscribed.isNotEmpty &&
+                                    rest.isNotEmpty)
+                                  const Divider(height: 16),
+                                ...rest.map(tile),
+                              ],
+                            );
+                          },
                         ),
                       ),
                       const SizedBox(height: 8),
