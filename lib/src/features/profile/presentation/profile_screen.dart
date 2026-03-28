@@ -1,7 +1,8 @@
+import 'dart:typed_data';
+
 import 'package:activefriends/src/features/auth/data/auth_service.dart';
 import 'package:activefriends/src/models/profile.dart';
 import 'package:flutter/material.dart';
-import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -16,7 +17,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Profile? _profile;
   bool _isLoading = true;
   String? _email;
-  File? _localImageFile; // Zmienna trzymająca wybrane zdjęcie
+  Uint8List? _localImageBytes;
+  bool _isUploadingAvatar = false;
   final ImagePicker _picker = ImagePicker();
 
   @override
@@ -36,17 +38,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> _pickImage() async {
-    // Możesz też użyć ImageSource.camera, żeby zrobić zdjęcie
-    final XFile? pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+  String _extractExt(String filename) {
+    final int dot = filename.lastIndexOf('.');
+    if (dot == -1 || dot == filename.length - 1) {
+      return 'jpg';
+    }
+    return filename.substring(dot + 1).toLowerCase();
+  }
 
-    if (pickedFile != null) {
-      setState(() {
-        _localImageFile = File(pickedFile.path);
-      });
-      
-      // TODO: Tutaj wyślij zdjęcie na swój serwer/Firebase za pomocą _authService
-      // _authService.uploadProfilePicture(_localImageFile!);
+  Future<void> _pickImage() async {
+    final XFile? pickedFile = await _picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1024,
+      imageQuality: 85,
+    );
+
+    if (pickedFile == null) {
+      return;
+    }
+
+    final Uint8List bytes = await pickedFile.readAsBytes();
+    final String ext = _extractExt(pickedFile.name);
+
+    setState(() {
+      _localImageBytes = bytes;
+      _isUploadingAvatar = true;
+    });
+
+    try {
+      await _authService.uploadProfileAvatar(bytes: bytes, fileExt: ext);
+      await _loadProfile();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Zdjęcie profilowe zaktualizowane.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              e.toString().replaceFirst('Exception: ', ''),
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isUploadingAvatar = false);
+      }
     }
   }
 
@@ -133,15 +173,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         CircleAvatar(
                           radius: 40,
                           backgroundColor: cs.primaryContainer,
-                          // Jeśli mamy lokalne zdjęcie, pokazujemy je. Jeśli nie, sprawdzamy URL w profilu. 
-                          // Jeśli URL też jest pusty, pokazujemy ikonę domyślną.
-                          backgroundImage: _localImageFile != null
-                              ? FileImage(_localImageFile!)
-                              : (_profile?.avatarUrl != null 
-                                  ? NetworkImage(_profile!.avatarUrl!) 
-                                  : null) as ImageProvider?,
-                          child: _localImageFile == null && _profile?.avatarUrl == null
-                              ? Icon(Icons.person, size: 48, color: cs.onPrimaryContainer)
+                          backgroundImage: _localImageBytes != null
+                              ? MemoryImage(_localImageBytes!)
+                              : (_profile?.avatarUrl != null &&
+                                      _profile!.avatarUrl!.trim().isNotEmpty
+                                  ? NetworkImage(_profile!.avatarUrl!)
+                                  : null),
+                          child: (_localImageBytes == null &&
+                                  (_profile?.avatarUrl == null ||
+                                      _profile!.avatarUrl!.trim().isEmpty))
+                              ? Icon(Icons.person,
+                                  size: 48, color: cs.onPrimaryContainer)
                               : null,
                         ),
                         // Mała ikonka aparatu w rogu
@@ -150,13 +192,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           decoration: BoxDecoration(
                             color: cs.primary,
                             shape: BoxShape.circle,
-                            border: Border.all(color: theme.scaffoldBackgroundColor, width: 2),
+                            border: Border.all(
+                                color: theme.scaffoldBackgroundColor, width: 2),
                           ),
-                          child: Icon(
-                            Icons.camera_alt,
-                            size: 16,
-                            color: cs.onPrimary,
-                          ),
+                          child: _isUploadingAvatar
+                              ? SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: cs.onPrimary,
+                                  ),
+                                )
+                              : Icon(
+                                  Icons.camera_alt,
+                                  size: 16,
+                                  color: cs.onPrimary,
+                                ),
                         ),
                       ],
                     ),

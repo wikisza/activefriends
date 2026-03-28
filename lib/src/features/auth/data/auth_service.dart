@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:activefriends/src/models/profile.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -103,5 +105,53 @@ class AuthService {
         .from('profiles')
         .update(<String, dynamic>{'display_name': displayName})
         .eq('id', user.id);
+  }
+
+  Future<String> uploadProfileAvatar({
+    required Uint8List bytes,
+    required String fileExt,
+  }) async {
+    final User? user = currentUser;
+    if (user == null) {
+      throw Exception('Musisz być zalogowany, aby dodać zdjęcie profilowe.');
+    }
+
+    final String normalizedExt =
+        fileExt.toLowerCase().replaceAll('.', '').trim().isEmpty
+            ? 'jpg'
+            : fileExt.toLowerCase().replaceAll('.', '').trim();
+
+    final String path = 'avatars/${user.id}/avatar.$normalizedExt';
+    final String contentType = switch (normalizedExt) {
+      'png' => 'image/png',
+      'webp' => 'image/webp',
+      'gif' => 'image/gif',
+      _ => 'image/jpeg',
+    };
+
+    try {
+      await _client.storage.from('avatars').uploadBinary(
+            path,
+            bytes,
+            fileOptions: FileOptions(
+              upsert: true,
+              contentType: contentType,
+            ),
+          );
+
+      final String publicUrl = _client.storage.from('avatars').getPublicUrl(path);
+
+      await _client
+          .from('profiles')
+          .update(<String, dynamic>{'avatar_url': publicUrl}).eq('id', user.id);
+
+      return publicUrl;
+    } on StorageException catch (e) {
+      throw Exception('Błąd Storage: ${e.message}');
+    } on PostgrestException catch (e) {
+      throw Exception('Błąd bazy danych: ${e.message}');
+    } catch (_) {
+      throw Exception('Nie udało się wgrać zdjęcia profilowego.');
+    }
   }
 }

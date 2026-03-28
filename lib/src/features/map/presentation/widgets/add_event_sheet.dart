@@ -1,6 +1,10 @@
+import 'dart:convert';
+
 import 'package:activefriends/src/features/map/data/event_repository.dart';
 import 'package:activefriends/src/models/event.dart' as model;
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -47,22 +51,21 @@ class _AddEventSheetState extends State<AddEventSheet> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _meetingPointController = TextEditingController();
-  final TextEditingController _latController = TextEditingController();
-  final TextEditingController _lngController = TextEditingController();
+  final TextEditingController _addressController = TextEditingController();
 
   _ActivityType _activityType = _ActivityType.sport;
   bool _tylkoZweryfikowani = false;
   bool _pilne = false;
   bool _isLoading = false;
+  bool _isLocating = false;
+  bool _isGeocoding = false;
   String? _errorMessage;
+  LatLng? _resolvedLocation;
+  String? _locationLabel;
 
   @override
   void initState() {
     super.initState();
-    if (widget.location != null) {
-      _latController.text = widget.location!.latitude.toStringAsFixed(6);
-      _lngController.text = widget.location!.longitude.toStringAsFixed(6);
-    }
   }
 
   @override
@@ -70,8 +73,7 @@ class _AddEventSheetState extends State<AddEventSheet> {
     _titleController.dispose();
     _descriptionController.dispose();
     _meetingPointController.dispose();
-    _latController.dispose();
-    _lngController.dispose();
+    _addressController.dispose();
     super.dispose();
   }
 
@@ -84,29 +86,113 @@ class _AddEventSheetState extends State<AddEventSheet> {
         if (_tylkoZweryfikowani) 'TYLKO ZWERYFIKOWANI',
       ];
 
-  LatLng? _resolveLocationFromForm() {
-    if (widget.location != null) {
-      return widget.location;
-    }
+  LatLng? get _effectiveLocation => widget.location ?? _resolvedLocation;
 
-    final String latRaw = _latController.text.trim().replaceAll(',', '.');
-    final String lngRaw = _lngController.text.trim().replaceAll(',', '.');
-    final double? lat = double.tryParse(latRaw);
-    final double? lng = double.tryParse(lngRaw);
-    if (lat == null || lng == null) {
-      return null;
+  Future<void> _useMyLocation() async {
+    setState(() {
+      _isLocating = true;
+      _errorMessage = null;
+    });
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        setState(() => _errorMessage = 'Usługi lokalizacji są wyłączone.');
+        return;
+      }
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          setState(() => _errorMessage = 'Brak zgody na dostęp do lokalizacji.');
+          return;
+        }
+      }
+      if (permission == LocationPermission.deniedForever) {
+        setState(
+          () => _errorMessage =
+              'Dostęp do lokalizacji jest zablokowany. Zmień uprawnienia w ustawieniach przeglądarki.',
+        );
+        return;
+      }
+      final Position pos = await Geolocator.getCurrentPosition(
+        locationSettings:
+            const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      setState(() {
+        _resolvedLocation = LatLng(pos.latitude, pos.longitude);
+        _locationLabel =
+            'Twoja lokalizacja (${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)})';
+      });
+    } catch (e) {
+      setState(() => _errorMessage = 'Nie udało się pobrać lokalizacji.');
+    } finally {
+      setState(() => _isLocating = false);
     }
-    return LatLng(lat, lng);
+  }
+
+  Future<void> _searchAddress() async {
+    final String query = _addressController.text.trim();
+    if (query.isEmpty) return;
+    setState(() {
+      _isGeocoding = true;
+      _errorMessage = null;
+    });
+    try {
+      final Uri uri = Uri.https(
+        'nominatim.openstreetmap.org',
+        '/search',
+        <String, String>{
+          'q': query,
+          'format': 'json',
+          'limit': '1',
+          'accept-language': 'pl',
+        },
+      );
+      final http.Response response = await http.get(
+        uri,
+        headers: <String, String>{'User-Agent': 'activefriends-app/1.0'},
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> data =
+            jsonDecode(response.body) as List<dynamic>;
+        if (data.isNotEmpty) {
+          final Map<String, dynamic> item =
+              data.first as Map<String, dynamic>;
+          final double lat = double.parse(item['lat'] as String);
+          final double lon = double.parse(item['lon'] as String);
+          setState(() {
+            _resolvedLocation = LatLng(lat, lon);
+            _locationLabel = item['display_name'] as String;
+          });
+        } else {
+          setState(
+            () => _errorMessage =
+                'Nie znaleziono adresu. Spróbuj inaczej sformułować zapytanie.',
+          );
+        }
+      } else {
+        setState(
+          () => _errorMessage =
+              'Błąd wyszukiwania adresu (${response.statusCode}).',
+        );
+      }
+    } catch (e) {
+      setState(
+        () => _errorMessage = 'Błąd połączenia podczas wyszukiwania adresu.',
+      );
+    } finally {
+      setState(() => _isGeocoding = false);
+    }
   }
 
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
-    final LatLng? resolvedLocation = _resolveLocationFromForm();
+    final LatLng? resolvedLocation = _effectiveLocation;
     if (resolvedLocation == null) {
       setState(() {
         _errorMessage =
-            'Podaj poprawna lokalizacje (latitude i longitude), jesli nie wybrales punktu na mapie.';
+            'Podaj lokalizację: użyj GPS lub wyszukaj adres.';
       });
       return;
     }
@@ -160,6 +246,112 @@ class _AddEventSheetState extends State<AddEventSheet> {
     }
   }
 
+  // ---------- location UI helpers ----------
+
+  Widget _buildLocationChip(
+    BuildContext context, {
+    required String label,
+    required VoidCallback? onClear,
+    required ColorScheme cs,
+    required ThemeData theme,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: cs.primaryContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: <Widget>[
+          Icon(Icons.location_on, size: 16, color: cs.primary),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              label,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: cs.onPrimaryContainer),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (onClear != null)
+            GestureDetector(
+              onTap: onClear,
+              child: Icon(Icons.close, size: 18, color: cs.onPrimaryContainer),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLocationPicker(ColorScheme cs, ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        OutlinedButton.icon(
+          onPressed: _isLocating ? null : _useMyLocation,
+          icon: _isLocating
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.my_location),
+          label: const Text('Użyj mojej lokalizacji (GPS)'),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
+            children: <Widget>[
+              const Expanded(child: Divider()),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Text(
+                  'lub podaj adres',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: cs.onSurfaceVariant),
+                ),
+              ),
+              const Expanded(child: Divider()),
+            ],
+          ),
+        ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Expanded(
+              child: TextFormField(
+                controller: _addressController,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  labelText: 'Adres',
+                  hintText: 'np. Stary Rynek, Poznań',
+                  prefixIcon: Icon(Icons.search),
+                  border: OutlineInputBorder(),
+                ),
+                onFieldSubmitted: (_) => _searchAddress(),
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              height: 56,
+              child: FilledButton.tonal(
+                onPressed: _isGeocoding ? null : _searchAddress,
+                child: _isGeocoding
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.search),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
@@ -196,104 +388,46 @@ class _AddEventSheetState extends State<AddEventSheet> {
                   ],
                 ),
 
-                // Location info
+                // Location section
                 if (widget.location != null)
-                  Row(
-                    children: <Widget>[
-                      Icon(Icons.location_on_outlined,
-                          size: 16, color: cs.primary),
-                      const SizedBox(width: 4),
-                      Text(
+                  _buildLocationChip(
+                    context,
+                    label:
                         '${widget.location!.latitude.toStringAsFixed(5)}, '
                         '${widget.location!.longitude.toStringAsFixed(5)}',
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: cs.onSurfaceVariant),
-                      ),
-                    ],
+                    onClear: null,
+                    cs: cs,
+                    theme: theme,
+                  )
+                else if (_resolvedLocation != null)
+                  _buildLocationChip(
+                    context,
+                    label: _locationLabel ??
+                        '${_resolvedLocation!.latitude.toStringAsFixed(5)}, '
+                            '${_resolvedLocation!.longitude.toStringAsFixed(5)}',
+                    onClear: () => setState(() {
+                      _resolvedLocation = null;
+                      _locationLabel = null;
+                      _addressController.clear();
+                    }),
+                    cs: cs,
+                    theme: theme,
                   )
                 else
-                  Row(
-                    children: <Widget>[
-                      Icon(Icons.location_searching,
-                          size: 16, color: cs.primary),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          'Nie wybrano punktu na mapie. Podaj lokalizacje recznie.',
-                          style: theme.textTheme.bodySmall
-                              ?.copyWith(color: cs.onSurfaceVariant),
-                        ),
-                      ),
-                    ],
-                  ),
+                  _buildLocationPicker(cs, theme),
                 const SizedBox(height: 18),
 
                 TextFormField(
                   controller: _meetingPointController,
                   textCapitalization: TextCapitalization.sentences,
                   decoration: const InputDecoration(
-                    labelText: 'Miejsce zbiorki',
-                    hintText: 'np. Stary Rynek, wejscie glowne',
+                    labelText: 'Miejsce zbiórki',
+                    hintText: 'np. Stary Rynek, wejście główne',
                     prefixIcon: Icon(Icons.place_outlined),
                     border: OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 14),
-
-                if (widget.location == null) ...<Widget>[
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: TextFormField(
-                          controller: _latController,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                            signed: true,
-                          ),
-                          decoration: const InputDecoration(
-                            labelText: 'Latitude *',
-                            prefixIcon: Icon(Icons.my_location),
-                            border: OutlineInputBorder(),
-                          ),
-                          validator: (String? v) {
-                            final double? d = double.tryParse(
-                              (v ?? '').trim().replaceAll(',', '.'),
-                            );
-                            if (d == null || d < -90 || d > 90) {
-                              return 'Zakres -90..90';
-                            }
-                            return null;
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: TextFormField(
-                          controller: _lngController,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                            signed: true,
-                          ),
-                          decoration: const InputDecoration(
-                            labelText: 'Longitude *',
-                            prefixIcon: Icon(Icons.explore_outlined),
-                            border: OutlineInputBorder(),
-                          ),
-                          validator: (String? v) {
-                            final double? d = double.tryParse(
-                              (v ?? '').trim().replaceAll(',', '.'),
-                            );
-                            if (d == null || d < -180 || d > 180) {
-                              return 'Zakres -180..180';
-                            }
-                            return null;
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                ],
 
                 // Title
                 TextFormField(
