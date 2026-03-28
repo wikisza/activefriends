@@ -309,13 +309,12 @@ class _MapScreenState extends State<MapScreen>
   }
 
   Future<void> _showAddEventSheet() async {
-    final LatLng location = _tappedLocation ?? _bydgoszcz;
     final bool? created = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (_) => AddEventSheet(
-        location: location,
+        location: _tappedLocation,
         repository: SupabaseEventRepository(),
       ),
     );

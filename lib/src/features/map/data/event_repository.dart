@@ -174,10 +174,13 @@ class SupabaseEventRepository implements EventRepository {
 
         final String eventId = row['id']?.toString() ?? 'unknown';
         final String organizerId = row['organizer_id']?.toString() ?? 'unknown';
+        final String organizerFallback = organizerId.length > 8
+            ? 'Uzytkownik ${organizerId.substring(0, 8)}'
+            : 'Uzytkownik';
         final UserProfile organizer = organizersById[organizerId] ??
-            const UserProfile(
-              id: 'unknown',
-              displayName: 'Organizator',
+            UserProfile(
+              id: organizerId,
+              displayName: organizerFallback,
               verificationLevel: VerificationLevel.level1,
             );
 

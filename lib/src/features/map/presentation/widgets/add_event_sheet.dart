@@ -35,7 +35,7 @@ class AddEventSheet extends StatefulWidget {
     required this.repository,
   });
 
-  final LatLng location;
+  final LatLng? location;
   final EventRepository repository;
 
   @override
@@ -46,6 +46,9 @@ class _AddEventSheetState extends State<AddEventSheet> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
+  final TextEditingController _meetingPointController = TextEditingController();
+  final TextEditingController _latController = TextEditingController();
+  final TextEditingController _lngController = TextEditingController();
 
   _ActivityType _activityType = _ActivityType.sport;
   bool _tylkoZweryfikowani = false;
@@ -54,9 +57,21 @@ class _AddEventSheetState extends State<AddEventSheet> {
   String? _errorMessage;
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.location != null) {
+      _latController.text = widget.location!.latitude.toStringAsFixed(6);
+      _lngController.text = widget.location!.longitude.toStringAsFixed(6);
+    }
+  }
+
+  @override
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    _meetingPointController.dispose();
+    _latController.dispose();
+    _lngController.dispose();
     super.dispose();
   }
 
@@ -69,8 +84,32 @@ class _AddEventSheetState extends State<AddEventSheet> {
         if (_tylkoZweryfikowani) 'TYLKO ZWERYFIKOWANI',
       ];
 
+  LatLng? _resolveLocationFromForm() {
+    if (widget.location != null) {
+      return widget.location;
+    }
+
+    final String latRaw = _latController.text.trim().replaceAll(',', '.');
+    final String lngRaw = _lngController.text.trim().replaceAll(',', '.');
+    final double? lat = double.tryParse(latRaw);
+    final double? lng = double.tryParse(lngRaw);
+    if (lat == null || lng == null) {
+      return null;
+    }
+    return LatLng(lat, lng);
+  }
+
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    final LatLng? resolvedLocation = _resolveLocationFromForm();
+    if (resolvedLocation == null) {
+      setState(() {
+        _errorMessage =
+            'Podaj poprawna lokalizacje (latitude i longitude), jesli nie wybrales punktu na mapie.';
+      });
+      return;
+    }
 
     final String? userId =
         Supabase.instance.client.auth.currentUser?.id;
@@ -89,14 +128,17 @@ class _AddEventSheetState extends State<AddEventSheet> {
       final model.Event event = model.Event(
         id: '',
         title: _titleController.text.trim(),
+        subtitle: _meetingPointController.text.trim().isEmpty
+            ? null
+            : _meetingPointController.text.trim(),
         description: _descriptionController.text.trim().isEmpty
             ? null
             : _descriptionController.text.trim(),
         scenario: _resolvedScenario,
         status: model.EventStatus.open,
         organizerId: userId,
-        lat: widget.location.latitude,
-        lng: widget.location.longitude,
+        lat: resolvedLocation.latitude,
+        lng: resolvedLocation.longitude,
         city: 'Bydgoszcz',
         createdAt: DateTime.now(),
       );
@@ -155,20 +197,103 @@ class _AddEventSheetState extends State<AddEventSheet> {
                 ),
 
                 // Location info
-                Row(
-                  children: <Widget>[
-                    Icon(Icons.location_on_outlined,
-                        size: 16, color: cs.primary),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${widget.location.latitude.toStringAsFixed(5)}, '
-                      '${widget.location.longitude.toStringAsFixed(5)}',
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: cs.onSurfaceVariant),
-                    ),
-                  ],
-                ),
+                if (widget.location != null)
+                  Row(
+                    children: <Widget>[
+                      Icon(Icons.location_on_outlined,
+                          size: 16, color: cs.primary),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${widget.location!.latitude.toStringAsFixed(5)}, '
+                        '${widget.location!.longitude.toStringAsFixed(5)}',
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: cs.onSurfaceVariant),
+                      ),
+                    ],
+                  )
+                else
+                  Row(
+                    children: <Widget>[
+                      Icon(Icons.location_searching,
+                          size: 16, color: cs.primary),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          'Nie wybrano punktu na mapie. Podaj lokalizacje recznie.',
+                          style: theme.textTheme.bodySmall
+                              ?.copyWith(color: cs.onSurfaceVariant),
+                        ),
+                      ),
+                    ],
+                  ),
                 const SizedBox(height: 18),
+
+                TextFormField(
+                  controller: _meetingPointController,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    labelText: 'Miejsce zbiorki',
+                    hintText: 'np. Stary Rynek, wejscie glowne',
+                    prefixIcon: Icon(Icons.place_outlined),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                if (widget.location == null) ...<Widget>[
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: TextFormField(
+                          controller: _latController,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                            signed: true,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Latitude *',
+                            prefixIcon: Icon(Icons.my_location),
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: (String? v) {
+                            final double? d = double.tryParse(
+                              (v ?? '').trim().replaceAll(',', '.'),
+                            );
+                            if (d == null || d < -90 || d > 90) {
+                              return 'Zakres -90..90';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextFormField(
+                          controller: _lngController,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                            signed: true,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Longitude *',
+                            prefixIcon: Icon(Icons.explore_outlined),
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: (String? v) {
+                            final double? d = double.tryParse(
+                              (v ?? '').trim().replaceAll(',', '.'),
+                            );
+                            if (d == null || d < -180 || d > 180) {
+                              return 'Zakres -180..180';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                ],
 
                 // Title
                 TextFormField(
