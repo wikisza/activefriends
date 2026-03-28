@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:activefriends/src/app/ui/app_transitions.dart';
 import 'package:activefriends/src/features/chat/data/chat_repository.dart';
 import 'package:activefriends/src/features/chat/domain/conversation_summary.dart';
 import 'package:activefriends/src/features/chat/presentation/chat_thread_screen.dart';
@@ -121,13 +122,7 @@ class _ChatConversationsScreenState extends State<ChatConversationsScreen> {
       body: RefreshIndicator(
         onRefresh: _load,
         child: _loading
-            ? ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                children: const <Widget>[
-                  SizedBox(height: 120),
-                  Center(child: CircularProgressIndicator()),
-                ],
-              )
+            ? const ShimmerLoading(itemCount: 7)
             : _error != null
                 ? ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
@@ -189,10 +184,12 @@ class _ChatConversationsScreenState extends State<ChatConversationsScreen> {
                     : ListView.separated(
                         physics: const AlwaysScrollableScrollPhysics(),
                         itemCount: _items.length,
-                        separatorBuilder: (context, i) => const Divider(height: 1),
+                        separatorBuilder: (_, _) => const Divider(height: 1),
                         itemBuilder: (BuildContext context, int index) {
                           final ConversationSummary s = _items[index];
-                          return ListTile(
+                          return AnimatedListItem(
+                            index: index,
+                            child: ListTile(
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 4,
@@ -236,7 +233,7 @@ class _ChatConversationsScreenState extends State<ChatConversationsScreen> {
                             onTap: () {
                               Navigator.of(context)
                                   .push(
-                                MaterialPageRoute<void>(
+                                AppRoute<void>(
                                   builder: (BuildContext context) =>
                                       ChatThreadScreen(
                                     peerUserId: s.peerUserId,
@@ -251,6 +248,7 @@ class _ChatConversationsScreenState extends State<ChatConversationsScreen> {
                               )
                                   .then((_) => _load());
                             },
+                          ),
                           );
                         },
                       ),

@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:activefriends/src/app/theme/app_palette.dart';
+import 'package:activefriends/src/app/ui/app_transitions.dart';
 import 'package:activefriends/src/features/auth/data/auth_service.dart';
 import 'package:activefriends/src/models/profile.dart';
 import 'package:activefriends/src/models/topic_catalog.dart';
@@ -25,6 +27,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isUploadingAvatar = false;
   bool _isSavingTopics = false;
   final ImagePicker _picker = ImagePicker();
+  bool _isTopicsExpanded = false;
 
   @override
   void initState() {
@@ -180,8 +183,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         (_profile?.subscribedTopics ?? const <String>[]).toSet();
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('Profil'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        foregroundColor: Colors.white,
         actions: <Widget>[
           IconButton(
             onPressed: _signOut,
@@ -193,68 +200,130 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.zero,
               children: <Widget>[
-                const SizedBox(height: 12),
-                Center(
-                  child: GestureDetector(
-                    // Pozwala kliknąć w cały avatar
-                    onTap: _pickImage,
-                    child: Stack(
-                      // Odpowiednik FrameLayout
-                      alignment: Alignment.bottomRight,
-                      children: [
-                        CircleAvatar(
-                          radius: 40,
-                          backgroundColor: cs.primaryContainer,
-                          backgroundImage: _localImageBytes != null
-                              ? MemoryImage(_localImageBytes!)
-                              : (_profile?.avatarUrl != null &&
-                                        _profile!.avatarUrl!.trim().isNotEmpty
-                                    ? NetworkImage(_profile!.avatarUrl!)
-                                    : null),
-                          child:
-                              (_localImageBytes == null &&
-                                  (_profile?.avatarUrl == null ||
-                                      _profile!.avatarUrl!.trim().isEmpty))
-                              ? Icon(
-                                  Icons.person,
-                                  size: 48,
-                                  color: cs.onPrimaryContainer,
-                                )
-                              : null,
-                        ),
-                        // Mała ikonka aparatu w rogu
-                        Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: cs.primary,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: theme.scaffoldBackgroundColor,
-                              width: 2,
+                // ── Gradient hero ──────────────────────────────
+                Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.bottomCenter,
+                  children: <Widget>[
+                    Container(
+                      height: 200,
+                      decoration: const BoxDecoration(
+                        gradient: AppPalette.brandGradient,
+                      ),
+                      child: Stack(
+                        children: <Widget>[
+                          // Decorative soft circles
+                          Positioned(
+                            top: -30,
+                            right: -20,
+                            child: Container(
+                              width: 160,
+                              height: 160,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white.withValues(alpha: 0.08),
+                              ),
                             ),
                           ),
-                          child: _isUploadingAvatar
-                              ? SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: cs.onPrimary,
-                                  ),
-                                )
-                              : Icon(
-                                  Icons.camera_alt,
-                                  size: 16,
-                                  color: cs.onPrimary,
-                                ),
-                        ),
-                      ],
+                          Positioned(
+                            bottom: -10,
+                            left: -30,
+                            child: Container(
+                              width: 120,
+                              height: 120,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white.withValues(alpha: 0.06),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
+                    // Avatar overlapping the gradient boundary
+                    Positioned(
+                      bottom: -48,
+                      child: GestureDetector(
+                        onTap: _pickImage,
+                        child: Stack(
+                          alignment: Alignment.bottomRight,
+                          children: <Widget>[
+                            Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 4,
+                                ),
+                                boxShadow: <BoxShadow>[
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.15),
+                                    blurRadius: 16,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: CircleAvatar(
+                                radius: 48,
+                                backgroundColor: cs.primaryContainer,
+                                backgroundImage: _localImageBytes != null
+                                    ? MemoryImage(_localImageBytes!)
+                                    : (_profile?.avatarUrl != null &&
+                                              _profile!.avatarUrl!
+                                                  .trim()
+                                                  .isNotEmpty
+                                          ? NetworkImage(_profile!.avatarUrl!)
+                                          : null),
+                                child: (_localImageBytes == null &&
+                                        (_profile?.avatarUrl == null ||
+                                            _profile!.avatarUrl!
+                                                .trim()
+                                                .isEmpty))
+                                    ? Icon(
+                                        Icons.person,
+                                        size: 52,
+                                        color: cs.onPrimaryContainer,
+                                      )
+                                    : null,
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                gradient: AppPalette.brandGradient,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2,
+                                ),
+                              ),
+                              child: _isUploadingAvatar
+                                  ? const SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.camera_alt,
+                                      size: 14,
+                                      color: Colors.white,
+                                    ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 14),
+                // Space for the overlapping avatar
+                const SizedBox(height: 60),
+
+                // Name + edit
                 Center(
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -262,13 +331,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Text(
                         _profile?.displayName ?? '—',
                         style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.3,
                         ),
                       ),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: 4),
                       IconButton(
                         onPressed: _editDisplayName,
-                        icon: const Icon(Icons.edit_outlined, size: 20),
+                        icon: const Icon(Icons.edit_outlined, size: 18),
                         tooltip: 'Edytuj pseudonim',
                       ),
                     ],
@@ -283,16 +353,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                   ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 Center(
-                  child: Chip(
-                    label: Text(
-                      'Weryfikacja: poziom ${_profile?.verificationLevel ?? 1}',
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 6,
                     ),
-                    avatar: const Icon(Icons.verified_outlined, size: 18),
+                    decoration: BoxDecoration(
+                      gradient: AppPalette.brandGradient,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        const Icon(
+                          Icons.verified_rounded,
+                          size: 14,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Weryfikacja: poziom ${_profile?.verificationLevel ?? 1}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
                 Card(
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
@@ -328,36 +426,52 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
-                          children: kSupportedTopics
-                              .map((String topic) {
-                                final bool isSelected = subscribedTopics
-                                    .contains(topic);
-                                return FilterChip(
-                                  label: Text(topic),
-                                  selected: isSelected,
-                                  onSelected: _isSavingTopics
-                                      ? null
-                                      : (bool selected) {
-                                          final Set<String> next =
-                                              Set<String>.from(
-                                                subscribedTopics,
-                                              );
-                                          if (selected) {
-                                            next.add(topic);
-                                          } else {
-                                            next.remove(topic);
-                                          }
-                                          _saveSubscribedTopics(next);
-                                        },
-                                );
-                              })
-                              .toList(growable: false),
+                          children: [
+                            ...(_isTopicsExpanded 
+                                    ? kSupportedTopics 
+                                    : kSupportedTopics.take(5))
+                                .map((String topic) {
+                              final bool isSelected = subscribedTopics.contains(topic);
+                              return FilterChip(
+                                label: Text(topic),
+                                selected: isSelected,
+                                onSelected: _isSavingTopics
+                                    ? null
+                                    : (bool selected) {
+                                        final Set<String> next = Set<String>.from(subscribedTopics);
+                                        if (selected) {
+                                          next.add(topic);
+                                        } else {
+                                          next.remove(topic);
+                                        }
+                                        _saveSubscribedTopics(next);
+                                      },
+                              );
+                            }),
+                          ],
+                        ),
+                        Center(
+                          child: TextButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                _isTopicsExpanded = !_isTopicsExpanded;
+                              });
+                            },
+                            icon: Icon(
+                              _isTopicsExpanded ? Icons.expand_less : Icons.expand_more,
+                              size: 20,
+                            ),
+                            label: Text(
+                              _isTopicsExpanded ? 'Pokaż mniej' : 'Pokaż wszystkie tematy',
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          ),
                         ),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 30),
+                const Divider(height: 1, indent: 16, endIndent: 16),
                 Card(
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
@@ -377,7 +491,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () {
                         Navigator.of(context).push(
-                          MaterialPageRoute(builder: (context) => const MyEventsScreen()),
+                          AppRoute<void>(builder: (context) => const MyEventsScreen()),
                         );
                       },
                     ),
@@ -401,8 +515,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                   ),
                 ),
-              ],
-            ),
+                const SizedBox(height: 24),
+                    ],   // Column.children
+                  ),     // Column
+                ),       // Padding
+              ],         // ListView.children
+            ),           // ListView
     );
   }
 }

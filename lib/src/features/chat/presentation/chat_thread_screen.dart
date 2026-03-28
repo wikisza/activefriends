@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:activefriends/src/app/theme/app_palette.dart';
+import 'package:activefriends/src/app/ui/app_transitions.dart';
 import 'package:activefriends/src/features/chat/data/chat_repository.dart';
 import 'package:activefriends/src/features/chat/domain/chat_message.dart';
 import 'package:flutter/material.dart';
@@ -381,15 +382,19 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                                 final bool isFirstInGroup = !mine &&
                                     (i == 0 ||
                                         _messages[i - 1].senderId != m.senderId);
-                                return _MessageBubble(
-                                  message: m,
+                                return AnimatedChatBubble(
                                   mine: mine,
-                                  isGroup: widget.isGroup,
-                                  showAvatar: isLastInGroup,
-                                  showSenderName: widget.isGroup && isFirstInGroup,
-                                  time: _formatTime(m.createdAt),
-                                  cs: cs,
-                                  theme: theme,
+                                  isNew: i == _messages.length - 1,
+                                  child: _MessageBubble(
+                                    message: m,
+                                    mine: mine,
+                                    isGroup: widget.isGroup,
+                                    showAvatar: isLastInGroup,
+                                    showSenderName: widget.isGroup && isFirstInGroup,
+                                    time: _formatTime(m.createdAt),
+                                    cs: cs,
+                                    theme: theme,
+                                  ),
                                 );
                               },
                             ),
@@ -575,8 +580,10 @@ class _MessageBubble extends StatelessWidget {
                   ),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: mine ? cs.primary : cs.surfaceContainerHighest,
+                      gradient: mine ? AppPalette.brandGradient : null,
+                      color: mine ? null : cs.surfaceContainerHighest,
                       borderRadius: radius,
+                      boxShadow: mine ? AppPalette.brandShadow : null,
                     ),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 14,

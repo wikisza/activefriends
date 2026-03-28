@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:activefriends/src/app/ui/premium_widgets.dart';
 import 'package:activefriends/src/features/chat/data/chat_repository.dart';
 import 'package:activefriends/src/features/chat/presentation/chat_conversations_screen.dart';
 import 'package:activefriends/src/features/forum/presentation/forum_screen.dart';
@@ -22,6 +23,8 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
   int _unreadChat = 0;
   int _unreadNotifications = 0;
 
+  final GlobalKey<MapScreenState> _mapKey = GlobalKey<MapScreenState>();
+
   final ChatRepository _chatRepo = ChatRepository();
   final NotificationRepository _notifRepo = NotificationRepository();
   final SupabaseClient _client = Supabase.instance.client;
@@ -33,7 +36,7 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
   static const int _notifTabIndex = 3;
 
   late final List<Widget> _tabs = <Widget>[
-    const MapScreen(),
+    MapScreen(key: _mapKey),
     const ChatConversationsScreen(),
     const ForumScreen(),
     const NotificationsScreen(),
@@ -72,7 +75,10 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
     super.dispose();
   }
 
-  void _onTabSelected(int index) {
+  void _handleTabSelection(int index) {
+    if (index == 0) {
+      _mapKey.currentState?.loadPins();
+    }
     setState(() {
       _currentIndex = index;
       if (index == _chatTabIndex) _unreadChat = 0;
@@ -80,57 +86,42 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
     });
   }
 
-  Widget _badgeIcon(Widget icon, int count) {
-    if (count == 0) return icon;
-    return Badge(
-      label: count > 9 ? const Text('9+') : Text('$count'),
-      child: icon,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final ColorScheme cs = Theme.of(context).colorScheme;
-
     return Scaffold(
       body: IndexedStack(index: _currentIndex, children: _tabs),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          border: Border(
-            top: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.4)),
+      bottomNavigationBar: AnimatedGradientTabBar(
+        selectedIndex: _currentIndex,
+        onTap: _handleTabSelection,
+        items: <TabItem>[
+          const TabItem(
+            icon: Icons.map_outlined,
+            activeIcon: Icons.map,
+            label: 'Mapa',
           ),
-        ),
-        child: NavigationBar(
-          selectedIndex: _currentIndex,
-          onDestinationSelected: _onTabSelected,
-          destinations: <NavigationDestination>[
-            const NavigationDestination(
-              icon: Icon(Icons.map_outlined),
-              selectedIcon: Icon(Icons.map),
-              label: 'Mapa',
-            ),
-            NavigationDestination(
-              icon: _badgeIcon(const Icon(Icons.chat_bubble_outline), _unreadChat),
-              selectedIcon: _badgeIcon(const Icon(Icons.chat_bubble), _unreadChat),
-              label: 'Czat',
-            ),
-            const NavigationDestination(
-              icon: Icon(Icons.forum_outlined),
-              selectedIcon: Icon(Icons.forum),
-              label: 'Forum',
-            ),
-            NavigationDestination(
-              icon: _badgeIcon(const Icon(Icons.notifications_outlined), _unreadNotifications),
-              selectedIcon: _badgeIcon(const Icon(Icons.notifications), _unreadNotifications),
-              label: 'Powiadomienia',
-            ),
-            const NavigationDestination(
-              icon: Icon(Icons.person_outline),
-              selectedIcon: Icon(Icons.person),
-              label: 'Profil',
-            ),
-          ],
-        ),
+          TabItem(
+            icon: Icons.chat_bubble_outline,
+            activeIcon: Icons.chat_bubble,
+            label: 'Czat',
+            badge: _unreadChat,
+          ),
+          const TabItem(
+            icon: Icons.forum_outlined,
+            activeIcon: Icons.forum,
+            label: 'Forum',
+          ),
+          TabItem(
+            icon: Icons.notifications_outlined,
+            activeIcon: Icons.notifications,
+            label: 'Powiadomienia',
+            badge: _unreadNotifications,
+          ),
+          const TabItem(
+            icon: Icons.person_outline,
+            activeIcon: Icons.person,
+            label: 'Profil',
+          ),
+        ],
       ),
     );
   }

@@ -1,4 +1,5 @@
 import 'package:activefriends/src/app/theme/app_palette.dart';
+import 'package:activefriends/src/app/ui/app_transitions.dart';
 import 'package:activefriends/src/features/auth/data/auth_service.dart';
 import 'package:activefriends/src/features/chat/data/chat_repository.dart';
 import 'package:activefriends/src/features/chat/presentation/chat_thread_screen.dart';
@@ -20,10 +21,10 @@ class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
 
   @override
-  State<MapScreen> createState() => _MapScreenState();
+  State<MapScreen> createState() => MapScreenState();
 }
 
-class _MapScreenState extends State<MapScreen>
+class MapScreenState extends State<MapScreen>
     with SingleTickerProviderStateMixin {
   static const LatLng _bydgoszcz = LatLng(53.1235, 18.0084);
   static const LatLng _gdansk = LatLng(54.352, 18.6466);
@@ -101,7 +102,7 @@ class _MapScreenState extends State<MapScreen>
       });
     }
 
-    await _loadPins();
+    await loadPins();
   }
 
   List<String> get _orderedSelectedTopics => orderedTopics(_selectedTopics);
@@ -186,7 +187,7 @@ class _MapScreenState extends State<MapScreen>
     });
   }
 
-  Future<void> _loadPins() async {
+  Future<void> loadPins() async {
     setState(() => _isLoading = true);
     try {
       final List<EventPin> items = await _repository.fetchPins(
@@ -339,7 +340,7 @@ class _MapScreenState extends State<MapScreen>
     }
 
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
+      AppRoute<void>(
         builder: (BuildContext context) => ChatThreadScreen(
           peerUserId: event.organizer.id,
           peerDisplayName: event.organizer.displayName,
@@ -470,7 +471,7 @@ class _MapScreenState extends State<MapScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Wydarzenie zostało dodane!')),
       );
-      _loadPins();
+      loadPins();
     }
   }
 
@@ -485,13 +486,13 @@ class _MapScreenState extends State<MapScreen>
               decoration: _overlayDecoration(),
               child: TextField(
                 controller: _searchController,
-                onSubmitted: (_) => _loadPins(),
+                onSubmitted: (_) => loadPins(),
                 textInputAction: TextInputAction.search,
                 decoration: InputDecoration(
                   hintText: 'Szukaj aktywnosci w Bydgoszczy',
                   prefixIcon: const Icon(Icons.search),
                   suffixIcon: IconButton(
-                    onPressed: _loadPins,
+                    onPressed: loadPins,
                     icon: const Icon(Icons.arrow_forward),
                   ),
                   border: InputBorder.none,
@@ -831,7 +832,7 @@ class _MapScreenState extends State<MapScreen>
     }
 
     setState(() => _selectedTopics = result);
-    await _loadPins();
+    await loadPins();
   }
 
   Future<void> _showSubscriptionsSheet() async {
