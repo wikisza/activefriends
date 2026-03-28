@@ -5,6 +5,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:activefriends/src/models/profile.dart';
 import 'package:activefriends/src/models/topic_catalog.dart';
 import 'package:geocoding/geocoding.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
+
 
 class ProfileService {
   ProfileService() : _client = Supabase.instance.client;
@@ -68,25 +72,53 @@ class ProfileService {
   }
 
   Future<String> getAddressFromCoords(double lat, double lng) async {
-    try {
-      // Pobieramy listę placemarków (może być ich kilka dla jednego punktu)
-      List<Placemark> placemarks = await placemarkFromCoordinates(lat, lng);
+    // 1. Sprawdzamy, czy to WEB
+    if (kIsWeb) {
+      return await _getAddressFromWeb(lat, lng);
+    }
 
+    // 2. Jeśli to Android/iOS, używamy starej metody natywnej
+    try {
+      List<Placemark> placemarks = await placemarkFromCoordinates(lat, lng);
       if (placemarks.isNotEmpty) {
         Placemark place = placemarks[0];
-        
-        // Budujemy czytelny adres: Ulica Numer, Kod Miasto
-        // place.street często zawiera już ulicę i numer
-        final street = place.street ?? '';
-        final city = place.locality ?? '';
-        final postalCode = place.postalCode ?? '';
-
-        return '$street, $postalCode $city';
+        return '${place.street}, ${place.postalCode} ${place.locality}';
       }
-      return "Nie znaleziono adresu";
     } catch (e) {
-      return "Błąd pobierania adresu";
+      // Jeśli natywny zawiedzie (np. brak Google Play Services), 
+      // spróbujmy też metody webowej jako backup
+      return await _getAddressFromWeb(lat, lng);
     }
+    return "Nie znaleziono adresu";
+  }
+
+  Future<String> _getAddressFromWeb(double lat, double lng) async {
+    try {
+      // Używamy darmowego API Nominatim (OpenStreetMap)
+      final url = Uri.parse(
+        'https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lng&zoom=18&addressdetails=1'
+      );
+
+      // UWAGA: Nominatim wymaga User-Agent w nagłówku!
+      final response = await http.get(url, headers: {
+        'User-Agent': 'ActiveFriendsApp/1.0' 
+      });
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final addr = data['address'];
+        
+        final road = addr['road'] ?? '';
+        final houseNumber = addr['house_number'] ?? '';
+        final city = addr['city'] ?? addr['town'] ?? addr['village'] ?? '';
+        final postCode = addr['postcode'] ?? '';
+
+        return '$road $houseNumber, $postCode $city'.trim();
+      }
+    } catch (e) {
+      print("Błąd HTTP Geocoding: $e");
+    }
+    return "Adres niedostępny na Web";
   }
 
   // Aktualizacja pseudonimu
