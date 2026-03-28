@@ -9,6 +9,7 @@ class MyEventsScreen extends StatefulWidget {
 
   @override
   State<MyEventsScreen> createState() => _MyEventsScreenState();
+  
 }
 
 class _MyEventsScreenState extends State<MyEventsScreen> {
@@ -56,7 +57,7 @@ class _MyEventsScreenState extends State<MyEventsScreen> {
                       separatorBuilder: (_, __) => const SizedBox(height: 12),
                       itemBuilder: (context, index) {
                         final event = _myEvents[index];
-                        return _EventTile(event: event);
+                        return _EventTile(event: event, onRefresh: _loadEvents,);
                       },
                     ),
             ),
@@ -77,7 +78,8 @@ class _MyEventsScreenState extends State<MyEventsScreen> {
 
 class _EventTile extends StatelessWidget {
   final Event event;
-  const _EventTile({required this.event});
+  final VoidCallback onRefresh;
+  const _EventTile({required this.event, required this.onRefresh});
 
   @override
   Widget build(BuildContext context) {
@@ -137,12 +139,16 @@ class _EventTile extends StatelessWidget {
           ],
         ),
         trailing: _StatusBadge(status: event.status),
-        onTap: () {
-          Navigator.of(context).push(
+        onTap: () async {
+          final bool? result = await Navigator.of(context).push<bool>(
             MaterialPageRoute(
               builder: (context) => EventDetailsScreen(event: event),
             ),
           );
+
+          if (result == true) {
+            onRefresh(); // Wywołujemy odświeżanie przekazane z góry
+          }
         },
       ),
     );
