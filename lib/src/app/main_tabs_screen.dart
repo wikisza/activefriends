@@ -19,6 +19,8 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
   int _currentIndex = 0;
   int _unreadCount = 0;
 
+  final GlobalKey<MapScreenState> _mapKey = GlobalKey<MapScreenState>();
+
   final ChatRepository _chatRepo = ChatRepository();
   final SupabaseClient _client = Supabase.instance.client;
   RealtimeChannel? _msgChannel;
@@ -26,7 +28,7 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
   static const int _chatTabIndex = 1;
 
   late final List<Widget> _tabs = <Widget>[
-    const MapScreen(),
+    MapScreen(key: _mapKey),
     const ChatConversationsScreen(),
     const ForumScreen(),
     const ProfileScreen(),
@@ -68,6 +70,11 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
         child: NavigationBar(
           selectedIndex: _currentIndex,
           onDestinationSelected: (int index) {
+            // 3. LOGIKA ODŚWIEŻANIA:
+            if (index == 0) { // Jeśli użytkownik klika w zakladkę Mapa (indeks 0)
+              _mapKey.currentState?.loadPins(); // WYMUŚ ODŚWIEŻENIE PINÓW
+            }
+
             if (index == _chatTabIndex) {
               setState(() {
                 _currentIndex = index;
