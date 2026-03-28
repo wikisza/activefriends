@@ -1,3 +1,4 @@
+import 'package:activefriends/src/app/theme/app_palette.dart';
 import 'package:activefriends/src/features/auth/data/auth_service.dart';
 import 'package:activefriends/src/features/chat/data/chat_repository.dart';
 import 'package:activefriends/src/features/chat/presentation/chat_thread_screen.dart';
@@ -46,6 +47,7 @@ class _MapScreenState extends State<MapScreen>
   LatLng? _tappedLocation;
   bool _isLoading = false;
   bool _isActionBusy = false;
+  bool _showSubscriptionsSavedFeedback = false;
 
   @override
   void initState() {
@@ -138,7 +140,7 @@ class _MapScreenState extends State<MapScreen>
           isSubscribed ? Icons.star_rounded : Icons.star_border_rounded,
           size: 18,
           color: isSubscribed
-              ? const Color(0xFFF1B500)
+              ? AppPalette.warning
               : Theme.of(context).colorScheme.outline,
         ),
         const SizedBox(width: 10),
@@ -158,7 +160,13 @@ class _MapScreenState extends State<MapScreen>
       if (!mounted) {
         return;
       }
-      setState(() => _subscribedTopics = nextTopics);
+      setState(() {
+        _subscribedTopics = nextTopics;
+      });
+      _triggerSubscriptionsFeedback();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Subskrypcje zostały zapisane.')),
+      );
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -166,6 +174,16 @@ class _MapScreenState extends State<MapScreen>
         );
       }
     }
+  }
+
+  void _triggerSubscriptionsFeedback() {
+    setState(() => _showSubscriptionsSavedFeedback = true);
+    Future<void>.delayed(const Duration(milliseconds: 800), () {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _showSubscriptionsSavedFeedback = false);
+    });
   }
 
   Future<void> _loadPins() async {
@@ -236,6 +254,8 @@ class _MapScreenState extends State<MapScreen>
         organizer: event.organizer,
         scenario: event.scenario,
         badges: event.badges,
+        startsAt: event.startsAt,
+        endsAt: event.endsAt,
         photoLabel: event.photoLabel,
         participationRole: role,
       );
@@ -372,7 +392,9 @@ class _MapScreenState extends State<MapScreen>
                     Polyline(
                       points: _bikeRoute,
                       strokeWidth: 5,
-                      color: const Color(0xFF0F7D31),
+                      color: AppPalette.scenarioColorByName(
+                        EventScenario.bikeRide.name,
+                      ),
                     ),
                   ],
                 ),
@@ -421,8 +443,8 @@ class _MapScreenState extends State<MapScreen>
         height: 74,
         child: FloatingActionButton(
           heroTag: 'map_add_event_fab',
-          backgroundColor: const Color(0xFF1E8E3E),
-          foregroundColor: Colors.white,
+          backgroundColor: Theme.of(context).colorScheme.secondary,
+          foregroundColor: Theme.of(context).colorScheme.onSecondary,
           shape: const CircleBorder(),
           onPressed: _showAddEventSheet,
           child: const Icon(Icons.add, size: 40),
@@ -529,54 +551,70 @@ class _MapScreenState extends State<MapScreen>
                 const SizedBox(width: 8),
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 168),
-                  child: Container(
-                    decoration: _overlayDecoration(),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(14),
-                        onTap: _showSubscriptionsSheet,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 13,
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: <Widget>[
-                              Icon(
-                                _subscribedTopics.isEmpty
-                                    ? Icons.star_border_rounded
-                                    : Icons.star_rounded,
-                                color: _subscribedTopics.isEmpty
-                                    ? Theme.of(
-                                        context,
-                                      ).colorScheme.onSurfaceVariant
-                                    : const Color(0xFFF1B500),
-                              ),
-                              const SizedBox(width: 8),
-                              Flexible(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: <Widget>[
-                                    Text(
-                                      'Subskrypcje',
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.labelMedium,
-                                    ),
-                                    Text(
-                                      _subscriptionSummary,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodySmall,
-                                    ),
-                                  ],
+                  child: AnimatedScale(
+                    scale: _showSubscriptionsSavedFeedback ? 1.05 : 1,
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOutBack,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      decoration: _overlayDecoration().copyWith(
+                        border: Border.all(
+                          color: _showSubscriptionsSavedFeedback
+                              ? AppPalette.warning
+                              : Colors.transparent,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(14),
+                          onTap: _showSubscriptionsSheet,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 13,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                Icon(
+                                  _subscribedTopics.isEmpty
+                                      ? Icons.star_border_rounded
+                                      : Icons.star_rounded,
+                                  color: _showSubscriptionsSavedFeedback
+                                      ? AppPalette.warning
+                                      : (_subscribedTopics.isEmpty
+                                            ? Theme.of(
+                                                context,
+                                              ).colorScheme.onSurfaceVariant
+                                            : AppPalette.warning),
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: <Widget>[
+                                      Text(
+                                        'Subskrypcje',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.labelMedium,
+                                      ),
+                                      Text(
+                                        _subscriptionSummary,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodySmall,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -592,14 +630,16 @@ class _MapScreenState extends State<MapScreen>
   }
 
   BoxDecoration _overlayDecoration() {
+    final ColorScheme cs = Theme.of(context).colorScheme;
     return BoxDecoration(
-      color: Colors.white.withValues(alpha: 0.95),
+      color: cs.surface.withValues(alpha: 0.95),
       borderRadius: BorderRadius.circular(14),
-      boxShadow: const <BoxShadow>[
+      border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.65)),
+      boxShadow: <BoxShadow>[
         BoxShadow(
-          color: Color(0x22000000),
+          color: Colors.black.withValues(alpha: 0.10),
           blurRadius: 12,
-          offset: Offset(0, 4),
+          offset: const Offset(0, 4),
         ),
       ],
     );
@@ -609,11 +649,9 @@ class _MapScreenState extends State<MapScreen>
     return _pins
         .map((EventPin item) {
           final bool selected = _selectedEvent?.id == item.id;
-          final Color color = switch (item.scenario) {
-            EventScenario.bikeRide => const Color(0xFF0F7D31),
-            EventScenario.emergency => const Color(0xFFD14343),
-            EventScenario.social => const Color(0xFF7B4AC8),
-          };
+          final Color color = AppPalette.scenarioColorByName(
+            item.scenario.name,
+          );
 
           return Marker(
             width: 58,
@@ -752,10 +790,6 @@ class _MapScreenState extends State<MapScreen>
                           Expanded(
                             child: ElevatedButton(
                               onPressed: () => Navigator.of(context).pop(draft),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF1E8E3E),
-                                foregroundColor: Colors.white,
-                              ),
                               child: const Text('Zastosuj filtry'),
                             ),
                           ),
@@ -819,9 +853,30 @@ class _MapScreenState extends State<MapScreen>
                                 return CheckboxListTile(
                                   value: isSubscribed,
                                   contentPadding: EdgeInsets.zero,
-                                  title: _buildTopicLabel(
-                                    topic,
-                                    isSubscribed: isSubscribed,
+                                  title: Text(topic),
+                                  secondary: IconButton(
+                                    tooltip: isSubscribed
+                                        ? 'Usuń z ulubionych'
+                                        : 'Dodaj do ulubionych',
+                                    onPressed: () {
+                                      setBottomState(() {
+                                        if (isSubscribed) {
+                                          draft.remove(topic);
+                                        } else {
+                                          draft.add(topic);
+                                        }
+                                      });
+                                    },
+                                    icon: Icon(
+                                      isSubscribed
+                                          ? Icons.star_rounded
+                                          : Icons.star_border_rounded,
+                                      color: isSubscribed
+                                          ? AppPalette.warning
+                                          : Theme.of(
+                                              context,
+                                            ).colorScheme.outline,
+                                    ),
                                   ),
                                   controlAffinity:
                                       ListTileControlAffinity.leading,
@@ -845,8 +900,8 @@ class _MapScreenState extends State<MapScreen>
                         child: ElevatedButton(
                           onPressed: () => Navigator.of(context).pop(draft),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFF1B500),
-                            foregroundColor: Colors.black,
+                            backgroundColor: AppPalette.warning,
+                            foregroundColor: AppPalette.warningOn,
                           ),
                           child: const Text('Zapisz subskrypcje'),
                         ),
@@ -883,16 +938,23 @@ class _PinIcon extends StatelessWidget {
       decoration: BoxDecoration(
         color: color,
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 4),
-        boxShadow: const <BoxShadow>[
+        border: Border.all(
+          color: Theme.of(context).colorScheme.surface,
+          width: 4,
+        ),
+        boxShadow: <BoxShadow>[
           BoxShadow(
-            color: Color(0x44000000),
+            color: Colors.black.withValues(alpha: 0.25),
             blurRadius: 9,
-            offset: Offset(0, 4),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: const Icon(Icons.place, color: Colors.white, size: 26),
+      child: Icon(
+        Icons.place,
+        color: Theme.of(context).colorScheme.onPrimary,
+        size: 26,
+      ),
     );
   }
 }
@@ -962,7 +1024,7 @@ class _DropPinMarker extends AnimatedWidget {
   const _DropPinMarker({required AnimationController animation})
     : super(listenable: animation);
 
-  static const Color _pinColor = Color(0xFF1E8E3E);
+  static const Color _pinColor = AppPalette.success;
 
   @override
   Widget build(BuildContext context) {
@@ -993,9 +1055,9 @@ class _DropPinMarker extends AnimatedWidget {
             child: Container(
               width: 18,
               height: 6,
-              decoration: const BoxDecoration(
-                color: Color(0x44000000),
-                borderRadius: BorderRadius.all(Radius.elliptical(9, 3)),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.25),
+                borderRadius: const BorderRadius.all(Radius.elliptical(9, 3)),
               ),
             ),
           ),
@@ -1012,18 +1074,21 @@ class _DropPinMarker extends AnimatedWidget {
                 decoration: BoxDecoration(
                   color: _pinColor,
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 3),
-                  boxShadow: const <BoxShadow>[
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.surface,
+                    width: 3,
+                  ),
+                  boxShadow: <BoxShadow>[
                     BoxShadow(
-                      color: Color(0x55000000),
+                      color: Colors.black.withValues(alpha: 0.32),
                       blurRadius: 8,
-                      offset: Offset(0, 4),
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.add_location_alt,
-                  color: Colors.white,
+                  color: Theme.of(context).colorScheme.onPrimary,
                   size: 20,
                 ),
               ),

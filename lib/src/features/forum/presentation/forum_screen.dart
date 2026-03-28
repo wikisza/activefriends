@@ -49,7 +49,9 @@ class _ForumScreenState extends State<ForumScreen> {
             // Check if user is subscribed to this topic
             if (_topics.any((t) => t.id == topicId && t.isSubscribed)) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Nowy komentarz w subskrybowanym temacie!')),
+                const SnackBar(
+                  content: Text('Nowy komentarz w subskrybowanym temacie!'),
+                ),
               );
             }
           },
@@ -84,20 +86,19 @@ class _ForumScreenState extends State<ForumScreen> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Błąd ładowania tematów: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Błąd ładowania tematów: $e')));
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme cs = Theme.of(context).colorScheme;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Forum'),
-        elevation: 0,
-      ),
+      appBar: AppBar(title: const Text('Forum'), elevation: 0),
       body: Column(
         children: [
           Padding(
@@ -114,7 +115,7 @@ class _ForumScreenState extends State<ForumScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       filled: true,
-                      fillColor: Colors.grey[100],
+                      fillColor: cs.surfaceContainerLowest,
                       contentPadding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                   ),
@@ -123,12 +124,19 @@ class _ForumScreenState extends State<ForumScreen> {
                 PopupMenuButton<String>(
                   icon: const Icon(Icons.filter_list),
                   onSelected: (value) {
-                    setState(() => _selectedCategory = value == 'all' ? null : value);
+                    setState(
+                      () => _selectedCategory = value == 'all' ? null : value,
+                    );
                     _loadTopics();
                   },
                   itemBuilder: (context) => [
-                    const PopupMenuItem(value: 'all', child: Text('Wszystkie kategorie')),
-                    ..._categories.map((cat) => PopupMenuItem(value: cat, child: Text(cat))),
+                    const PopupMenuItem(
+                      value: 'all',
+                      child: Text('Wszystkie kategorie'),
+                    ),
+                    ..._categories.map(
+                      (cat) => PopupMenuItem(value: cat, child: Text(cat)),
+                    ),
                   ],
                 ),
                 const SizedBox(width: 4),
@@ -147,26 +155,42 @@ class _ForumScreenState extends State<ForumScreen> {
                     const PopupMenuItem(
                       value: 'all',
                       child: Row(
-                        children: [Icon(Icons.public, size: 18), SizedBox(width: 8), Text('Wszystkie tematy')],
+                        children: [
+                          Icon(Icons.public, size: 18),
+                          SizedBox(width: 8),
+                          Text('Wszystkie tematy'),
+                        ],
                       ),
                     ),
                     const PopupMenuDivider(height: 12),
                     const PopupMenuItem(
                       value: 'sort_newest',
                       child: Row(
-                        children: [Icon(Icons.schedule, size: 18), SizedBox(width: 8), Text('Najnowsze')],
+                        children: [
+                          Icon(Icons.schedule, size: 18),
+                          SizedBox(width: 8),
+                          Text('Najnowsze'),
+                        ],
                       ),
                     ),
                     const PopupMenuItem(
                       value: 'sort_oldest',
                       child: Row(
-                        children: [Icon(Icons.history, size: 18), SizedBox(width: 8), Text('Najstarsze')],
+                        children: [
+                          Icon(Icons.history, size: 18),
+                          SizedBox(width: 8),
+                          Text('Najstarsze'),
+                        ],
                       ),
                     ),
                     const PopupMenuItem(
                       value: 'sort_comments',
                       child: Row(
-                        children: [Icon(Icons.chat_bubble, size: 18), SizedBox(width: 8), Text('Popularne')],
+                        children: [
+                          Icon(Icons.chat_bubble, size: 18),
+                          SizedBox(width: 8),
+                          Text('Popularne'),
+                        ],
                       ),
                     ),
                   ],
@@ -178,74 +202,103 @@ class _ForumScreenState extends State<ForumScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _topics.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.forum_outlined, size: 64, color: Colors.grey[400]),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Brak tematów',
-                              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-                            ),
-                          ],
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.forum_outlined,
+                          size: 64,
+                          color: cs.onSurfaceVariant,
                         ),
-                      )
-                    : ListView.builder(
-                        itemCount: _topics.length,
-                        itemBuilder: (context, index) {
-                          final topic = _topics[index];
-                          return Card(
-                            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            child: ListTile(
-                              title: Text(
-                                topic.title,
-                                style: const TextStyle(fontWeight: FontWeight.w600),
-                              ),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  if (topic.description != null && topic.description!.isNotEmpty)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 4.0),
-                                      child: Text(
-                                        topic.description!,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(color: Colors.grey[600]),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Brak tematów',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: _topics.length,
+                    itemBuilder: (context, index) {
+                      final topic = _topics[index];
+                      return Card(
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        child: ListTile(
+                          title: Text(
+                            topic.title,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (topic.description != null &&
+                                  topic.description!.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4.0),
+                                  child: Text(
+                                    topic.description!,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: cs.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ),
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8.0),
+                                child: Row(
+                                  children: [
+                                    if (topic.category != null)
+                                      Chip(
+                                        label: Text(topic.category!),
+                                        backgroundColor:
+                                            cs.surfaceContainerHighest,
+                                        labelStyle: const TextStyle(
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    const Spacer(),
+                                    Icon(
+                                      Icons.chat_bubble_outline,
+                                      size: 16,
+                                      color: cs.onSurfaceVariant,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '${topic.commentCount}',
+                                      style: TextStyle(
+                                        color: cs.onSurfaceVariant,
+                                        fontSize: 12,
                                       ),
                                     ),
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 8.0),
-                                    child: Row(
-                                      children: [
-                                        if (topic.category != null)
-                                          Chip(
-                                            label: Text(topic.category!),
-                                            backgroundColor: Colors.blue[100],
-                                            labelStyle: const TextStyle(fontSize: 11),
-                                          ),
-                                        const Spacer(),
-                                        Icon(Icons.chat_bubble_outline, size: 16, color: Colors.grey[600]),
-                                        const SizedBox(width: 4),
-                                        Text('${topic.commentCount}', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-                                      ],
-                                    ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => TopicDiscussionScreen(topic: topic, repository: _repository),
-                                  ),
-                                );
-                              },
-                            ),
-                          );
-                        },
-                      ),
+                            ],
+                          ),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => TopicDiscussionScreen(
+                                  topic: topic,
+                                  repository: _repository,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
@@ -273,41 +326,71 @@ class _ForumScreenState extends State<ForumScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 12),
-                const Text('Tytuł tematu', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                const Text(
+                  'Tytuł tematu',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: titleController,
                   decoration: InputDecoration(
                     hintText: 'Np. Gdzie najlepiej jeździć na rowerze?',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
                   ),
                   maxLines: 1,
                 ),
                 const SizedBox(height: 20),
-                const Text('Opis (szczegóły)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                const Text(
+                  'Opis (szczegóły)',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: descriptionController,
                   decoration: InputDecoration(
-                    hintText: 'Opisz swoje pytanie, problem lub temat dyskusji...',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    hintText:
+                        'Opisz swoje pytanie, problem lub temat dyskusji...',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
                   ),
                   maxLines: 5,
                 ),
                 const SizedBox(height: 20),
-                const Text('Kategoria', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                const Text(
+                  'Kategoria',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                ),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
                   value: selectedCategory,
                   decoration: InputDecoration(
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
                   ),
                   hint: const Text('Wybierz kategorię'),
-                  items: _categories.map((cat) => DropdownMenuItem(value: cat, child: Text(cat))).toList(),
-                  onChanged: (value) => setState(() => selectedCategory = value),
+                  items: _categories
+                      .map(
+                        (cat) => DropdownMenuItem(value: cat, child: Text(cat)),
+                      )
+                      .toList(),
+                  onChanged: (value) =>
+                      setState(() => selectedCategory = value),
                 ),
               ],
             ),
@@ -328,7 +411,9 @@ class _ForumScreenState extends State<ForumScreen> {
                 try {
                   await _repository.createTopic(
                     titleController.text,
-                    descriptionController.text.isEmpty ? null : descriptionController.text,
+                    descriptionController.text.isEmpty
+                        ? null
+                        : descriptionController.text,
                     selectedCategory,
                   );
                   Navigator.pop(context);
@@ -401,10 +486,10 @@ class _TopicDiscussionScreenState extends State<TopicDiscussionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme cs = Theme.of(context).colorScheme;
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.topic.title),
-      ),
+      appBar: AppBar(title: Text(widget.topic.title)),
       body: Column(
         children: [
           if (widget.topic.description != null)
@@ -438,10 +523,15 @@ class _TopicDiscussionScreenState extends State<TopicDiscussionScreen> {
                     controller: _commentController,
                     decoration: InputDecoration(
                       hintText: 'Dodaj komentarz...',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                       filled: true,
-                      fillColor: Colors.grey[50],
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      fillColor: cs.surfaceContainerLowest,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
                     ),
                   ),
                 ),
@@ -457,7 +547,9 @@ class _TopicDiscussionScreenState extends State<TopicDiscussionScreen> {
                         _loadComments();
                       } catch (e) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Błąd dodawania komentarza: $e')),
+                          SnackBar(
+                            content: Text('Błąd dodawania komentarza: $e'),
+                          ),
                         );
                       }
                     }
@@ -507,9 +599,9 @@ class _CommentWidgetState extends State<CommentWidget> {
       setState(() => _userVote = vote);
       widget.onCommentUpdated();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Błąd głosowania: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Błąd głosowania: $e')));
     }
   }
 
@@ -517,6 +609,7 @@ class _CommentWidgetState extends State<CommentWidget> {
   Widget build(BuildContext context) {
     final currentUserId = Supabase.instance.client.auth.currentUser?.id;
     final isOwner = currentUserId == widget.comment.authorId;
+    final ColorScheme cs = Theme.of(context).colorScheme;
 
     return Padding(
       padding: EdgeInsets.only(left: widget.level * 20.0, top: 8.0),
@@ -545,13 +638,21 @@ class _CommentWidgetState extends State<CommentWidget> {
                             if (value == 'edit') {
                               _showEditDialog();
                             } else if (value == 'delete') {
-                              await widget.repository.deleteComment(widget.comment.id);
+                              await widget.repository.deleteComment(
+                                widget.comment.id,
+                              );
                               widget.onCommentUpdated();
                             }
                           },
                           itemBuilder: (context) => [
-                            const PopupMenuItem(value: 'edit', child: Text('Edytuj')),
-                            const PopupMenuItem(value: 'delete', child: Text('Usuń')),
+                            const PopupMenuItem(
+                              value: 'edit',
+                              child: Text('Edytuj'),
+                            ),
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: Text('Usuń'),
+                            ),
                           ],
                         ),
                     ],
@@ -567,25 +668,32 @@ class _CommentWidgetState extends State<CommentWidget> {
                       IconButton(
                         icon: Icon(
                           Icons.thumb_up,
-                          color: _userVote == 1 ? Colors.green : null,
+                          color: _userVote == 1 ? cs.secondary : null,
                           size: widget.level > 0 ? 16 : 20,
                         ),
                         onPressed: () => _vote(_userVote == 1 ? 0 : 1),
                       ),
-                      Text('${widget.comment.likes}', style: TextStyle(fontSize: widget.level > 0 ? 10 : 12)),
+                      Text(
+                        '${widget.comment.likes}',
+                        style: TextStyle(fontSize: widget.level > 0 ? 10 : 12),
+                      ),
                       IconButton(
                         icon: Icon(
                           Icons.thumb_down,
-                          color: _userVote == -1 ? Colors.red : null,
+                          color: _userVote == -1 ? cs.error : null,
                           size: widget.level > 0 ? 16 : 20,
                         ),
                         onPressed: () => _vote(_userVote == -1 ? 0 : -1),
                       ),
-                      Text('${widget.comment.dislikes}', style: TextStyle(fontSize: widget.level > 0 ? 10 : 12)),
+                      Text(
+                        '${widget.comment.dislikes}',
+                        style: TextStyle(fontSize: widget.level > 0 ? 10 : 12),
+                      ),
                       const Spacer(),
                       if (widget.level == 0)
                         TextButton(
-                          onPressed: () => setState(() => _showReply = !_showReply),
+                          onPressed: () =>
+                              setState(() => _showReply = !_showReply),
                           child: const Text('Odpowiedz'),
                         ),
                     ],
@@ -604,10 +712,17 @@ class _CommentWidgetState extends State<CommentWidget> {
                       controller: _replyController,
                       decoration: InputDecoration(
                         hintText: 'Odpowiedz...',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                         filled: true,
-                        fillColor: Colors.grey[50],
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        fillColor: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerLowest,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
                       ),
                     ),
                   ),
@@ -625,7 +740,9 @@ class _CommentWidgetState extends State<CommentWidget> {
                           widget.onCommentUpdated();
                         } catch (e) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Błąd dodawania odpowiedzi: $e')),
+                            SnackBar(
+                              content: Text('Błąd dodawania odpowiedzi: $e'),
+                            ),
                           );
                         }
                       }
@@ -646,10 +763,7 @@ class _CommentWidgetState extends State<CommentWidget> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Edytuj komentarz'),
-        content: TextField(
-          controller: controller,
-          maxLines: 3,
-        ),
+        content: TextField(controller: controller, maxLines: 3),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -658,13 +772,16 @@ class _CommentWidgetState extends State<CommentWidget> {
           TextButton(
             onPressed: () async {
               try {
-                await widget.repository.editComment(widget.comment.id, controller.text);
+                await widget.repository.editComment(
+                  widget.comment.id,
+                  controller.text,
+                );
                 Navigator.pop(context);
                 widget.onCommentUpdated();
               } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Błąd edycji: $e')),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text('Błąd edycji: $e')));
               }
             },
             child: const Text('Zapisz'),
@@ -699,11 +816,12 @@ class _CommentThreadState extends State<CommentThread> {
 
   @override
   Widget build(BuildContext context) {
-    final visibleReplies = _showAllReplies 
-        ? widget.replies 
+    final visibleReplies = _showAllReplies
+        ? widget.replies
         : widget.replies.take(_replyPreviewLimit).toList();
-    
-    final hasMoreReplies = widget.replies.length > _replyPreviewLimit && !_showAllReplies;
+
+    final hasMoreReplies =
+        widget.replies.length > _replyPreviewLimit && !_showAllReplies;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -720,18 +838,22 @@ class _CommentThreadState extends State<CommentThread> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ...visibleReplies.map((reply) => CommentWidget(
-                  comment: reply,
-                  repository: widget.repository,
-                  onCommentUpdated: widget.onCommentUpdated,
-                  level: 1,
-                )),
+                ...visibleReplies.map(
+                  (reply) => CommentWidget(
+                    comment: reply,
+                    repository: widget.repository,
+                    onCommentUpdated: widget.onCommentUpdated,
+                    level: 1,
+                  ),
+                ),
                 if (hasMoreReplies)
                   Padding(
                     padding: const EdgeInsets.only(top: 8.0, left: 8.0),
                     child: TextButton(
                       onPressed: () => setState(() => _showAllReplies = true),
-                      child: Text('Pokaż wszystkie odpowiedzi (${widget.replies.length})'),
+                      child: Text(
+                        'Pokaż wszystkie odpowiedzi (${widget.replies.length})',
+                      ),
                     ),
                   ),
               ],
