@@ -39,6 +39,7 @@ dependencies:
   http: ^1.2.2
   supabase_flutter: ^2.0.0
   image_picker: ^1.2.1
+  equatable: ^2.0.8
 
 dev_dependencies:
   flutter_test:
