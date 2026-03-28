@@ -7,7 +7,6 @@ class EventPreviewPanel extends StatelessWidget {
     required this.event,
     required this.onClose,
     required this.onJoin,
-    required this.onAskQuestion,
     required this.onHelp,
     required this.onReportLocal,
     required this.onChatWithOrganizer,
@@ -18,7 +17,6 @@ class EventPreviewPanel extends StatelessWidget {
   final EventPin event;
   final VoidCallback onClose;
   final VoidCallback onJoin;
-  final VoidCallback onAskQuestion;
   final VoidCallback onHelp;
   final VoidCallback onReportLocal;
   final VoidCallback onChatWithOrganizer;
@@ -110,8 +108,6 @@ class EventPreviewPanel extends StatelessWidget {
     return switch (event.scenario) {
       EventScenario.bikeRide => <Widget>[
           _primaryButton('DOLACZ', onJoin),
-          const SizedBox(height: 10),
-          _secondaryButton('ZADAJ PYTANIE', onAskQuestion),
         ],
       EventScenario.emergency => <Widget>[
           _primaryButton('MOGE POMOC', onHelp),

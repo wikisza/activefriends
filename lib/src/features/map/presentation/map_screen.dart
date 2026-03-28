@@ -138,28 +138,6 @@ class _MapScreenState extends State<MapScreen>
     }
   }
 
-  Future<void> _askQuestion() async {
-    final EventPin? event = _selectedEvent;
-    if (event == null) {
-      return;
-    }
-
-    setState(() => _isActionBusy = true);
-    try {
-      await _repository.askQuestion(event.id, 'Czy sa wolne miejsca?');
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pytanie wyslane.')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isActionBusy = false);
-      }
-    }
-  }
-
   Future<void> _reportLocal() async {
     final EventPin? event = _selectedEvent;
     if (event == null) {
@@ -298,7 +276,6 @@ class _MapScreenState extends State<MapScreen>
                 _bikeRoute = <LatLng>[];
               }),
               onJoin: _joinEvent,
-              onAskQuestion: _askQuestion,
               onHelp: _joinEvent,
               onReportLocal: _reportLocal,
               onChatWithOrganizer: _openOrganizerChat,
