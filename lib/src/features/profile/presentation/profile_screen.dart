@@ -1,6 +1,8 @@
 import 'package:activefriends/src/features/auth/data/auth_service.dart';
 import 'package:activefriends/src/models/profile.dart';
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -14,6 +16,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Profile? _profile;
   bool _isLoading = true;
   String? _email;
+  File? _localImageFile; // Zmienna trzymająca wybrane zdjęcie
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -29,6 +33,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) setState(() => _profile = p);
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _pickImage() async {
+    // Możesz też użyć ImageSource.camera, żeby zrobić zdjęcie
+    final XFile? pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile != null) {
+      setState(() {
+        _localImageFile = File(pickedFile.path);
+      });
+      
+      // TODO: Tutaj wyślij zdjęcie na swój serwer/Firebase za pomocą _authService
+      // _authService.uploadProfilePicture(_localImageFile!);
     }
   }
 
@@ -107,11 +125,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: <Widget>[
                 const SizedBox(height: 12),
                 Center(
-                  child: CircleAvatar(
-                    radius: 40,
-                    backgroundColor: cs.primaryContainer,
-                    child: Icon(Icons.person,
-                        size: 48, color: cs.onPrimaryContainer),
+                  child: GestureDetector( // Pozwala kliknąć w cały avatar
+                    onTap: _pickImage,
+                    child: Stack( // Odpowiednik FrameLayout
+                      alignment: Alignment.bottomRight,
+                      children: [
+                        CircleAvatar(
+                          radius: 40,
+                          backgroundColor: cs.primaryContainer,
+                          // Jeśli mamy lokalne zdjęcie, pokazujemy je. Jeśli nie, sprawdzamy URL w profilu. 
+                          // Jeśli URL też jest pusty, pokazujemy ikonę domyślną.
+                          backgroundImage: _localImageFile != null
+                              ? FileImage(_localImageFile!)
+                              : (_profile?.avatarUrl != null 
+                                  ? NetworkImage(_profile!.avatarUrl!) 
+                                  : null) as ImageProvider?,
+                          child: _localImageFile == null && _profile?.avatarUrl == null
+                              ? Icon(Icons.person, size: 48, color: cs.onPrimaryContainer)
+                              : null,
+                        ),
+                        // Mała ikonka aparatu w rogu
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: cs.primary,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: theme.scaffoldBackgroundColor, width: 2),
+                          ),
+                          child: Icon(
+                            Icons.camera_alt,
+                            size: 16,
+                            color: cs.onPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 14),
