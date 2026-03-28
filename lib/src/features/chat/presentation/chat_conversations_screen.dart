@@ -86,21 +86,24 @@ class _ChatConversationsScreenState extends State<ChatConversationsScreen> {
   }
 
   Widget _avatar(ConversationSummary s, ColorScheme cs) {
+    if (s.isGroup) {
+      return CircleAvatar(
+        backgroundColor: cs.secondaryContainer,
+        foregroundColor: cs.onSecondaryContainer,
+        radius: 24,
+        child: const Icon(Icons.group_rounded),
+      );
+    }
     final String? url = s.peerAvatarUrl;
     if (url != null && url.isNotEmpty) {
-      return CircleAvatar(
-        backgroundImage: NetworkImage(url),
-        radius: 24,
-      );
+      return CircleAvatar(backgroundImage: NetworkImage(url), radius: 24);
     }
     return CircleAvatar(
       backgroundColor: cs.primaryContainer,
       foregroundColor: cs.onPrimaryContainer,
       radius: 24,
       child: Text(
-        s.peerDisplayName.isNotEmpty
-            ? s.peerDisplayName[0].toUpperCase()
-            : '?',
+        s.peerDisplayName.isNotEmpty ? s.peerDisplayName[0].toUpperCase() : '?',
         style: const TextStyle(fontWeight: FontWeight.bold),
       ),
     );
@@ -186,7 +189,7 @@ class _ChatConversationsScreenState extends State<ChatConversationsScreen> {
                     : ListView.separated(
                         physics: const AlwaysScrollableScrollPhysics(),
                         itemCount: _items.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        separatorBuilder: (context, i) => const Divider(height: 1),
                         itemBuilder: (BuildContext context, int index) {
                           final ConversationSummary s = _items[index];
                           return ListTile(
@@ -196,18 +199,31 @@ class _ChatConversationsScreenState extends State<ChatConversationsScreen> {
                             ),
                             leading: _avatar(s, cs),
                             title: Text(
-                              s.peerDisplayName,
+                              s.displayName,
                               style: theme.textTheme.titleSmall?.copyWith(
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
-                            subtitle: Text(
-                              _subtitle(s),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: cs.onSurfaceVariant,
-                              ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                if (s.isGroup)
+                                  Text(
+                                    '${s.memberCount} uczestników',
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: cs.primary,
+                                    ),
+                                  ),
+                                Text(
+                                  _subtitle(s),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: cs.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
                             ),
                             trailing: s.lastMessageAt != null
                                 ? Text(
@@ -227,6 +243,9 @@ class _ChatConversationsScreenState extends State<ChatConversationsScreen> {
                                     peerDisplayName: s.peerDisplayName,
                                     peerAvatarUrl: s.peerAvatarUrl,
                                     conversationId: s.conversationId,
+                                    isGroup: s.isGroup,
+                                    groupTitle: s.groupTitle,
+                                    eventId: s.eventId,
                                   ),
                                 ),
                               )
