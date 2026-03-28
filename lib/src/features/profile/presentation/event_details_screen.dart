@@ -21,6 +21,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
   Profile? _organizer;
   List<Map<String, dynamic>> _participants = [];
   String _fullAddress = "Ładowanie adresu...";
+  bool _isLoading = true;
 
   @override
   void initState() {
