@@ -90,9 +90,41 @@ create table if not exists local_reports (
   created_at timestamptz not null default now()
 );
 
-insert into topics(code, label, icon_name)
-values
-  ('bike', 'Rower', 'directions_bike'),
-  ('ceramics', 'Ceramika', 'palette_outlined'),
-  ('help', 'Pomoc', 'warning_amber')
-on conflict (code) do nothing;
+create table if not exists forum_topics (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  description text,
+  author_id uuid not null references profiles(id) on delete cascade,
+  category text,
+  is_subscribed boolean not null default false,
+  comment_count integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists forum_comments (
+  id uuid primary key default gen_random_uuid(),
+  topic_id uuid not null references forum_topics(id) on delete cascade,
+  author_id uuid not null references profiles(id) on delete cascade,
+  content text not null,
+  parent_id uuid references forum_comments(id) on delete cascade,
+  likes integer not null default 0,
+  dislikes integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists forum_comment_votes (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profiles(id) on delete cascade,
+  comment_id uuid not null references forum_comments(id) on delete cascade,
+  vote smallint not null check (vote in (-1, 1)), -- -1 dislike, 1 like
+  created_at timestamptz not null default now(),
+  unique(user_id, comment_id)
+);
+
+create index if not exists idx_forum_topics_author on forum_topics(author_id);
+create index if not exists idx_forum_topics_created on forum_topics(created_at desc);
+create index if not exists idx_forum_topics_category on forum_topics(category);
+create index if not exists idx_forum_comments_topic on forum_comments(topic_id);
+create index if not exists idx_forum_comments_parent on forum_comments(parent_id);
+create index if not exists idx_forum_comment_votes on forum_comment_votes(comment_id);

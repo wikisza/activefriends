@@ -4,6 +4,7 @@ import 'package:activefriends/src/features/auth/data/auth_service.dart';
 import 'package:activefriends/src/models/profile.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:activefriends/src/features/profile/presentation/profile_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -14,6 +15,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final AuthService _authService = AuthService();
+  final ProfileService _profileService = ProfileService();
   Profile? _profile;
   bool _isLoading = true;
   String? _email;
@@ -31,7 +33,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _loadProfile() async {
     setState(() => _isLoading = true);
     try {
-      final Profile? p = await _authService.fetchProfile();
+      final Profile? p = await _profileService.fetchProfile();
       if (mounted) setState(() => _profile = p);
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -122,7 +124,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (newName == null || newName.isEmpty) return;
 
     try {
-      await _authService.updateDisplayName(newName);
+      await _profileService.updateDisplayName(newName);
       await _loadProfile();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
