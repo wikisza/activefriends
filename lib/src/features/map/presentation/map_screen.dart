@@ -20,10 +20,10 @@ class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
 
   @override
-  State<MapScreen> createState() => _MapScreenState();
+  State<MapScreen> createState() => MapScreenState();
 }
 
-class _MapScreenState extends State<MapScreen>
+class MapScreenState extends State<MapScreen>
     with SingleTickerProviderStateMixin {
   static const LatLng _bydgoszcz = LatLng(53.1235, 18.0084);
   static const LatLng _gdansk = LatLng(54.352, 18.6466);
@@ -101,7 +101,7 @@ class _MapScreenState extends State<MapScreen>
       });
     }
 
-    await _loadPins();
+    await loadPins();
   }
 
   List<String> get _orderedSelectedTopics => orderedTopics(_selectedTopics);
@@ -186,7 +186,7 @@ class _MapScreenState extends State<MapScreen>
     });
   }
 
-  Future<void> _loadPins() async {
+  Future<void> loadPins() async {
     setState(() => _isLoading = true);
     try {
       final List<EventPin> items = await _repository.fetchPins(
@@ -470,7 +470,7 @@ class _MapScreenState extends State<MapScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Wydarzenie zostało dodane!')),
       );
-      _loadPins();
+      loadPins();
     }
   }
 
@@ -485,13 +485,13 @@ class _MapScreenState extends State<MapScreen>
               decoration: _overlayDecoration(),
               child: TextField(
                 controller: _searchController,
-                onSubmitted: (_) => _loadPins(),
+                onSubmitted: (_) => loadPins(),
                 textInputAction: TextInputAction.search,
                 decoration: InputDecoration(
                   hintText: 'Szukaj aktywnosci w Bydgoszczy',
                   prefixIcon: const Icon(Icons.search),
                   suffixIcon: IconButton(
-                    onPressed: _loadPins,
+                    onPressed: loadPins,
                     icon: const Icon(Icons.arrow_forward),
                   ),
                   border: InputBorder.none,
@@ -810,7 +810,7 @@ class _MapScreenState extends State<MapScreen>
     }
 
     setState(() => _selectedTopics = result);
-    await _loadPins();
+    await loadPins();
   }
 
   Future<void> _showSubscriptionsSheet() async {

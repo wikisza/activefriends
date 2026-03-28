@@ -22,6 +22,9 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
   int _unreadChat = 0;
   int _unreadNotifications = 0;
 
+  // Klucz do sterowania stanem mapy (odświeżanie pinów)
+  final GlobalKey<MapScreenState> _mapKey = GlobalKey<MapScreenState>();
+
   final ChatRepository _chatRepo = ChatRepository();
   final NotificationRepository _notifRepo = NotificationRepository();
   final SupabaseClient _client = Supabase.instance.client;
@@ -33,7 +36,7 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
   static const int _notifTabIndex = 3;
 
   late final List<Widget> _tabs = <Widget>[
-    const MapScreen(),
+    MapScreen(key: _mapKey), // MapScreen musi mieć publiczną klasę stanu MapScreenState
     const ChatConversationsScreen(),
     const ForumScreen(),
     const NotificationsScreen(),
@@ -72,9 +75,16 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
     super.dispose();
   }
 
-  void _onTabSelected(int index) {
+  // Poprawiona logika zmiany zakładki
+  void _handleTabSelection(int index) {
+    // Jeśli klikamy w Mapę (indeks 0), odświeżamy piny
+    if (index == 0) {
+      _mapKey.currentState?.loadPins();
+    }
+
     setState(() {
       _currentIndex = index;
+      // Czyścimy liczniki po wejściu w odpowiednią zakładkę
       if (index == _chatTabIndex) _unreadChat = 0;
       if (index == _notifTabIndex) _unreadNotifications = 0;
     });
@@ -102,7 +112,7 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
         ),
         child: NavigationBar(
           selectedIndex: _currentIndex,
-          onDestinationSelected: _onTabSelected,
+          onDestinationSelected: _handleTabSelection, // Używamy poprawionej metody
           destinations: <NavigationDestination>[
             const NavigationDestination(
               icon: Icon(Icons.map_outlined),
