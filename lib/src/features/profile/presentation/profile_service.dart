@@ -149,6 +149,20 @@ class ProfileService {
         .eq('id', user.id);
   }
 
+  Future<void> deleteEvent(String eventId) async {
+    try {
+      // Dzięki ON DELETE CASCADE w bazie, to jedno wywołanie 
+      // usunie też uczestników i odznaki.
+      await _client
+          .from('events')
+          .delete()
+          .eq('id', eventId);
+          
+    } catch (e) {
+      throw Exception('Nie udało się usunąć wydarzenia: $e');
+    }
+  }
+
   // Wgrywanie zdjęcia do Storage
   Future<void> uploadProfilePicture(File imageFile) async {
     final User? user = _client.auth.currentUser;

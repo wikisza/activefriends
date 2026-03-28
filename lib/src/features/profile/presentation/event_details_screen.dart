@@ -5,6 +5,7 @@ import 'package:activefriends/src/models/event_route.dart';
 import 'package:activefriends/src/models/profile.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class EventDetailsScreen extends StatefulWidget {
   final Event event;
@@ -20,6 +21,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
   Profile? _organizer;
   List<Map<String, dynamic>> _participants = [];
   String _fullAddress = "Ładowanie adresu...";
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -28,20 +30,69 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
   }
 
   Future<void> _loadData() async {
-    // Pobieramy trasę i dane organizatora równolegle
-    final results = await Future.wait([
-      _service.fetchEventRoute(widget.event.id),
-      _service.fetchProfileById(widget.event.organizerId),
-      _service.fetchParticipantsWithProfiles(widget.event.id),
-      _service.getAddressFromCoords(widget.event.lat, widget.event.lng),
-    ]);
-    if (mounted) {
-      setState(() {
-        _route = results[0] as EventRoute?;
-        _organizer = results[1] as Profile?;
-        _participants = results[2] as List<Map<String, dynamic>>;
-        _fullAddress = results[3] as String;
-      });
+    try {
+      // Pobieramy trasę, dane organizatora, uczestników i adres równolegle
+      final results = await Future.wait([
+        _service.fetchEventRoute(widget.event.id),
+        _service.fetchProfileById(widget.event.organizerId),
+        _service.fetchParticipantsWithProfiles(widget.event.id),
+        _service.getAddressFromCoords(widget.event.lat, widget.event.lng),
+      ]);
+
+      if (mounted) {
+        setState(() {
+          _route = results[0] as EventRoute?;
+          _organizer = results[1] as Profile?;
+          _participants = results[2] as List<Map<String, dynamic>>;
+          _fullAddress = results[3] as String;
+        });
+      }
+    } catch (e) {
+      debugPrint('Błąd ładowania danych: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _confirmDelete() async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Usuń wydarzenie'),
+        content: const Text(
+            'Czy na pewno chcesz usunąć to wydarzenie? Wszystkie dane uczestników oraz trasa zostaną bezpowrotnie usunięte.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Anuluj'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Usuń wszystko'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() => _isLoading = true);
+      try {
+        await _service.deleteEvent(widget.event.id);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Wydarzenie zostało usunięte.')),
+          );
+          Navigator.of(context).pop(true); // Wraca do listy i informuje o zmianie
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Błąd podczas usuwania: $e')),
+          );
+        }
+      }
     }
   }
 
@@ -51,34 +102,44 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
     final cs = theme.colorScheme;
     final event = widget.event;
 
+    // Sprawdzamy, czy aktualny użytkownik jest organizatorem
+    final String? currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    final bool isOrganizer = currentUserId == event.organizerId;
+
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          _buildAppBar(event),
-          SliverList(
-            delegate: SliverChildListDelegate([
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // --- TYTUŁ I SUBTYTUŁ ---
-                    Text(
+      body: _isLoading && _organizer == null
+          ? const Center(child: CircularProgressIndicator())
+          : CustomScrollView(
+              slivers: [
+                _buildAppBar(event, isOrganizer),
+                SliverList(
+                  delegate: SliverChildListDelegate([
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // --- TYTUŁ I SUBTYTUŁ ---
+                          Text(
                       event.title,
-                      style: theme.textTheme.headlineMedium?.copyWith(
+                             
+                      style: theme.textTheme.headlineMedium
+                                  ?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    if (event.subtitle != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
+                          if (event.subtitle != null) ...[
+                            const SizedBox(height: 4),
+                            Text(
                         event.subtitle!,
-                        style: theme.textTheme.titleMedium?.copyWith(
+                               
+                        style: theme.textTheme.titleMedium
+                                    ?.copyWith(
                           color: cs.secondary,
                         ),
                       ),
-                    ],
-                    const SizedBox(height: 16),
+                          ],
+                          const SizedBox(height: 16),
 
                     // --- STATUSY (CHIPY) ---
                     Wrap(
@@ -192,9 +253,12 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                       ),
                     ],
 
-                    const Divider(height: 40),
-                    _buildSectionTitle('Uczestnicy (${_participants.length})'),
-                    const SizedBox(height: 12),
+                          const Divider(height: 40),
+
+                          // --- UCZESTNICY ---
+                          _buildSectionTitle(
+                              'Uczestnicy (${_participants.length})'),
+                          const SizedBox(height: 12),
 
                     if (_participants.isEmpty)
                       Text(
@@ -294,10 +358,18 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
 
   // --- HELPERY UI ---
 
-  Widget _buildAppBar(Event event) {
+  Widget _buildAppBar(Event event, bool isOrganizer) {
     return SliverAppBar(
       expandedHeight: 250,
       pinned: true,
+      actions: [
+        if (isOrganizer)
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: Colors.white),
+            tooltip: 'Usuń wydarzenie',
+            onPressed: _confirmDelete,
+          ),
+      ],
       flexibleSpace: FlexibleSpaceBar(
         background: event.photoUrl != null
             ? Image.network(event.photoUrl!, fit: BoxFit.cover)
