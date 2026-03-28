@@ -96,82 +96,159 @@ class _ForumScreenState extends State<ForumScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Forum'),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(60),
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              controller: _searchController,
-              decoration: const InputDecoration(
-                hintText: 'Szukaj tematów...',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
-                filled: true,
-                fillColor: Colors.white,
-              ),
+        elevation: 0,
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Szukaj tematów...',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey[100],
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.filter_list),
+                  onSelected: (value) {
+                    setState(() => _selectedCategory = value == 'all' ? null : value);
+                    _loadTopics();
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(value: 'all', child: Text('Wszystkie kategorie')),
+                    ..._categories.map((cat) => PopupMenuItem(value: cat, child: Text(cat))),
+                  ],
+                ),
+                const SizedBox(width: 4),
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert),
+                  onSelected: (value) {
+                    if (value.startsWith('sort_')) {
+                      setState(() => _sortBy = value.replaceFirst('sort_', ''));
+                    } else {
+                      setState(() => _filter = value);
+                    }
+                    _loadTopics();
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuDivider(height: 8),
+                    const PopupMenuItem(
+                      value: 'all',
+                      child: Row(
+                        children: [Icon(Icons.public, size: 18), SizedBox(width: 8), Text('Wszystkie tematy')],
+                      ),
+                    ),
+                    const PopupMenuDivider(height: 12),
+                    const PopupMenuItem(
+                      value: 'sort_newest',
+                      child: Row(
+                        children: [Icon(Icons.schedule, size: 18), SizedBox(width: 8), Text('Najnowsze')],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'sort_oldest',
+                      child: Row(
+                        children: [Icon(Icons.history, size: 18), SizedBox(width: 8), Text('Najstarsze')],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'sort_comments',
+                      child: Row(
+                        children: [Icon(Icons.chat_bubble, size: 18), SizedBox(width: 8), Text('Popularne')],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-        ),
-        actions: [
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              setState(() => _sortBy = value);
-              _loadTopics();
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(value: 'newest', child: Text('Najnowsze')),
-              const PopupMenuItem(value: 'oldest', child: Text('Najstarsze')),
-              const PopupMenuItem(value: 'comments', child: Text('Najwięcej komentarzy')),
-            ],
-          ),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              setState(() => _filter = value);
-              _loadTopics();
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(value: 'all', child: Text('Wszystkie')),
-              const PopupMenuItem(value: 'subscribed', child: Text('Subskrybowane')),
-            ],
-          ),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              setState(() => _selectedCategory = value == 'all' ? null : value);
-              _loadTopics();
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(value: 'all', child: Text('Wszystkie kategorie')),
-              ..._categories.map((cat) => PopupMenuItem(value: cat, child: Text(cat))),
-            ],
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _topics.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.forum_outlined, size: 64, color: Colors.grey[400]),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Brak tematów',
+                              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: _topics.length,
+                        itemBuilder: (context, index) {
+                          final topic = _topics[index];
+                          return Card(
+                            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            child: ListTile(
+                              title: Text(
+                                topic.title,
+                                style: const TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (topic.description != null && topic.description!.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 4.0),
+                                      child: Text(
+                                        topic.description!,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(color: Colors.grey[600]),
+                                      ),
+                                    ),
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 8.0),
+                                    child: Row(
+                                      children: [
+                                        if (topic.category != null)
+                                          Chip(
+                                            label: Text(topic.category!),
+                                            backgroundColor: Colors.blue[100],
+                                            labelStyle: const TextStyle(fontSize: 11),
+                                          ),
+                                        const Spacer(),
+                                        Icon(Icons.chat_bubble_outline, size: 16, color: Colors.grey[600]),
+                                        const SizedBox(width: 4),
+                                        Text('${topic.commentCount}', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => TopicDiscussionScreen(topic: topic, repository: _repository),
+                                  ),
+                                );
+                              },
+                            ),
+                          );
+                        },
+                      ),
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView.builder(
-              itemCount: _topics.length,
-              itemBuilder: (context, index) {
-                final topic = _topics[index];
-                return ListTile(
-                  title: Text(topic.title),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (topic.description != null) Text(topic.description!),
-                      Text('${topic.commentCount} komentarzy • ${topic.category ?? 'Brak kategorii'}'),
-                    ],
-                  ),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => TopicDiscussionScreen(topic: topic, repository: _repository),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
       floatingActionButton: FloatingActionButton(
         heroTag: 'forum_add_topic_fab',
         onPressed: _showAddTopicDialog,
@@ -190,50 +267,79 @@ class _ForumScreenState extends State<ForumScreen> {
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
           title: const Text('Dodaj nowy temat'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: titleController,
-                decoration: const InputDecoration(labelText: 'Tytuł'),
-              ),
-              TextField(
-                controller: descriptionController,
-                decoration: const InputDecoration(labelText: 'Opis (opcjonalny)'),
-                maxLines: 3,
-              ),
-              DropdownButtonFormField<String>(
-                value: selectedCategory,
-                decoration: const InputDecoration(labelText: 'Kategoria'),
-                items: _categories.map((cat) => DropdownMenuItem(value: cat, child: Text(cat))).toList(),
-                onChanged: (value) => setState(() => selectedCategory = value),
-              ),
-            ],
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 12),
+                const Text('Tytuł tematu', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: titleController,
+                  decoration: InputDecoration(
+                    hintText: 'Np. Gdzie najlepiej jeździć na rowerze?',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  ),
+                  maxLines: 1,
+                ),
+                const SizedBox(height: 20),
+                const Text('Opis (szczegóły)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: descriptionController,
+                  decoration: InputDecoration(
+                    hintText: 'Opisz swoje pytanie, problem lub temat dyskusji...',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  ),
+                  maxLines: 5,
+                ),
+                const SizedBox(height: 20),
+                const Text('Kategoria', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  value: selectedCategory,
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  ),
+                  hint: const Text('Wybierz kategorię'),
+                  items: _categories.map((cat) => DropdownMenuItem(value: cat, child: Text(cat))).toList(),
+                  onChanged: (value) => setState(() => selectedCategory = value),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('Anuluj'),
             ),
-            TextButton(
+            ElevatedButton(
               onPressed: () async {
-                if (titleController.text.isNotEmpty) {
-                  try {
-                    await _repository.createTopic(
-                      titleController.text,
-                      descriptionController.text.isEmpty ? null : descriptionController.text,
-                      selectedCategory,
-                    );
-                    Navigator.pop(context);
-                    _loadTopics();
-                  } catch (e) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Błąd tworzenia tematu: $e')),
-                    );
-                  }
+                if (titleController.text.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Wpisz tytuł tematu')),
+                  );
+                  return;
+                }
+                try {
+                  await _repository.createTopic(
+                    titleController.text,
+                    descriptionController.text.isEmpty ? null : descriptionController.text,
+                    selectedCategory,
+                  );
+                  Navigator.pop(context);
+                  _loadTopics();
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Błąd tworzenia tematu: $e')),
+                  );
                 }
               },
-              child: const Text('Dodaj'),
+              child: const Text('Dodaj temat'),
             ),
           ],
         ),
@@ -257,16 +363,22 @@ class TopicDiscussionScreen extends StatefulWidget {
 }
 
 class _TopicDiscussionScreenState extends State<TopicDiscussionScreen> {
-  List<ForumComment> _comments = [];
+  List<ForumComment> _allComments = [];
   bool _isLoading = true;
   final TextEditingController _commentController = TextEditingController();
-  bool _isSubscribed = false;
 
   @override
   void initState() {
     super.initState();
-    _isSubscribed = widget.topic.isSubscribed;
     _loadComments();
+  }
+
+  List<ForumComment> _getTopLevelComments() {
+    return _allComments.where((c) => c.parentId == null).toList();
+  }
+
+  List<ForumComment> _getReplies(String parentId) {
+    return _allComments.where((c) => c.parentId == parentId).toList();
   }
 
   Future<void> _loadComments() async {
@@ -274,7 +386,7 @@ class _TopicDiscussionScreenState extends State<TopicDiscussionScreen> {
     try {
       final comments = await widget.repository.getComments(widget.topic.id);
       setState(() {
-        _comments = comments;
+        _allComments = comments;
         _isLoading = false;
       });
     } catch (e) {
@@ -287,32 +399,11 @@ class _TopicDiscussionScreenState extends State<TopicDiscussionScreen> {
     }
   }
 
-  Future<void> _toggleSubscription() async {
-    try {
-      if (_isSubscribed) {
-        await widget.repository.unsubscribeFromTopic(widget.topic.id);
-      } else {
-        await widget.repository.subscribeToTopic(widget.topic.id);
-      }
-      setState(() => _isSubscribed = !_isSubscribed);
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Błąd subskrypcji: $e')),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.topic.title),
-        actions: [
-          IconButton(
-            icon: Icon(_isSubscribed ? Icons.notifications : Icons.notifications_none),
-            onPressed: _toggleSubscription,
-          ),
-        ],
       ),
       body: Column(
         children: [
@@ -325,14 +416,15 @@ class _TopicDiscussionScreenState extends State<TopicDiscussionScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : ListView.builder(
-                    itemCount: _comments.length,
+                    itemCount: _getTopLevelComments().length,
                     itemBuilder: (context, index) {
-                      final comment = _comments[index];
-                      return CommentWidget(
-                        comment: comment,
+                      final topLevelComment = _getTopLevelComments()[index];
+                      final replies = _getReplies(topLevelComment.id);
+                      return CommentThread(
+                        comment: topLevelComment,
+                        replies: replies,
                         repository: widget.repository,
                         onCommentUpdated: _loadComments,
-                        level: 0,
                       );
                     },
                   ),
@@ -344,9 +436,12 @@ class _TopicDiscussionScreenState extends State<TopicDiscussionScreen> {
                 Expanded(
                   child: TextField(
                     controller: _commentController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: 'Dodaj komentarz...',
-                      border: OutlineInputBorder(),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      filled: true,
+                      fillColor: Colors.grey[50],
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                     ),
                   ),
                 ),
@@ -399,12 +494,11 @@ class CommentWidget extends StatefulWidget {
 class _CommentWidgetState extends State<CommentWidget> {
   bool _showReply = false;
   final TextEditingController _replyController = TextEditingController();
-  int _userVote = 0; // 0: no vote, 1: like, -1: dislike
+  int _userVote = 0;
 
   @override
   void initState() {
     super.initState();
-    // TODO: Load user's vote for this comment
   }
 
   Future<void> _vote(int vote) async {
@@ -438,8 +532,11 @@ class _CommentWidgetState extends State<CommentWidget> {
                   Row(
                     children: [
                       Text(
-                        'Użytkownik ${widget.comment.authorId.substring(0, 8)}',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                        widget.comment.authorName,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: widget.level > 0 ? 12 : 14,
+                        ),
                       ),
                       const Spacer(),
                       if (isOwner)
@@ -460,7 +557,10 @@ class _CommentWidgetState extends State<CommentWidget> {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text(widget.comment.content),
+                  Text(
+                    widget.comment.content,
+                    style: TextStyle(fontSize: widget.level > 0 ? 12 : 14),
+                  ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
@@ -468,23 +568,26 @@ class _CommentWidgetState extends State<CommentWidget> {
                         icon: Icon(
                           Icons.thumb_up,
                           color: _userVote == 1 ? Colors.green : null,
+                          size: widget.level > 0 ? 16 : 20,
                         ),
                         onPressed: () => _vote(_userVote == 1 ? 0 : 1),
                       ),
-                      Text('${widget.comment.likes}'),
+                      Text('${widget.comment.likes}', style: TextStyle(fontSize: widget.level > 0 ? 10 : 12)),
                       IconButton(
                         icon: Icon(
                           Icons.thumb_down,
                           color: _userVote == -1 ? Colors.red : null,
+                          size: widget.level > 0 ? 16 : 20,
                         ),
                         onPressed: () => _vote(_userVote == -1 ? 0 : -1),
                       ),
-                      Text('${widget.comment.dislikes}'),
+                      Text('${widget.comment.dislikes}', style: TextStyle(fontSize: widget.level > 0 ? 10 : 12)),
                       const Spacer(),
-                      TextButton(
-                        onPressed: () => setState(() => _showReply = !_showReply),
-                        child: const Text('Odpowiedz'),
-                      ),
+                      if (widget.level == 0)
+                        TextButton(
+                          onPressed: () => setState(() => _showReply = !_showReply),
+                          child: const Text('Odpowiedz'),
+                        ),
                     ],
                   ),
                 ],
@@ -499,9 +602,12 @@ class _CommentWidgetState extends State<CommentWidget> {
                   Expanded(
                     child: TextField(
                       controller: _replyController,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         hintText: 'Odpowiedz...',
-                        border: OutlineInputBorder(),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        filled: true,
+                        fillColor: Colors.grey[50],
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                       ),
                     ),
                   ),
@@ -565,6 +671,73 @@ class _CommentWidgetState extends State<CommentWidget> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class CommentThread extends StatefulWidget {
+  const CommentThread({
+    super.key,
+    required this.comment,
+    required this.replies,
+    required this.repository,
+    required this.onCommentUpdated,
+  });
+
+  final ForumComment comment;
+  final List<ForumComment> replies;
+  final ForumRepository repository;
+  final VoidCallback onCommentUpdated;
+
+  @override
+  State<CommentThread> createState() => _CommentThreadState();
+}
+
+class _CommentThreadState extends State<CommentThread> {
+  bool _showAllReplies = false;
+  static const int _replyPreviewLimit = 3;
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleReplies = _showAllReplies 
+        ? widget.replies 
+        : widget.replies.take(_replyPreviewLimit).toList();
+    
+    final hasMoreReplies = widget.replies.length > _replyPreviewLimit && !_showAllReplies;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CommentWidget(
+          comment: widget.comment,
+          repository: widget.repository,
+          onCommentUpdated: widget.onCommentUpdated,
+          level: 0,
+        ),
+        if (widget.replies.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(left: 20.0, top: 4.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ...visibleReplies.map((reply) => CommentWidget(
+                  comment: reply,
+                  repository: widget.repository,
+                  onCommentUpdated: widget.onCommentUpdated,
+                  level: 1,
+                )),
+                if (hasMoreReplies)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0, left: 8.0),
+                    child: TextButton(
+                      onPressed: () => setState(() => _showAllReplies = true),
+                      child: Text('Pokaż wszystkie odpowiedzi (${widget.replies.length})'),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }
