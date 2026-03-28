@@ -84,7 +84,9 @@ class SupabaseEventRepository implements EventRepository {
     try {
       final List<dynamic> rawEvents = await _client
           .from('events')
-          .select('id,title,subtitle,scenario,organizer_id,lat,lng')
+          .select(
+            'id,title,subtitle,scenario,organizer_id,lat,lng,starts_at,ends_at',
+          )
           .order('created_at', ascending: false);
 
       final List<Map<String, dynamic>> events = rawEvents
@@ -206,6 +208,12 @@ class SupabaseEventRepository implements EventRepository {
 
             final double lat = (row['lat'] as num?)?.toDouble() ?? 53.1235;
             final double lng = (row['lng'] as num?)?.toDouble() ?? 18.0084;
+            final DateTime? startsAt = row['starts_at'] != null
+                ? DateTime.tryParse(row['starts_at'].toString())
+                : null;
+            final DateTime? endsAt = row['ends_at'] != null
+                ? DateTime.tryParse(row['ends_at'].toString())
+                : null;
 
             return EventPin(
               id: eventId,
@@ -216,6 +224,8 @@ class SupabaseEventRepository implements EventRepository {
               organizer: organizer,
               scenario: scenario,
               badges: badgesByEventId[eventId] ?? <String>[],
+              startsAt: startsAt,
+              endsAt: endsAt,
               participationRole: participationRoleByEventId[eventId],
             );
           })

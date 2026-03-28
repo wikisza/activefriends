@@ -33,6 +33,8 @@ class EventPin {
     required this.organizer,
     required this.scenario,
     required this.badges,
+    this.startsAt,
+    this.endsAt,
     this.photoLabel,
     this.participationRole,
   });
@@ -45,6 +47,8 @@ class EventPin {
   final UserProfile organizer;
   final EventScenario scenario;
   final List<String> badges;
+  final DateTime? startsAt;
+  final DateTime? endsAt;
   final String? photoLabel;
   final String? participationRole;
 }

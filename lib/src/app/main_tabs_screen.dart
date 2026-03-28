@@ -90,42 +90,47 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme cs = Theme.of(context).colorScheme;
+
     return Scaffold(
       body: IndexedStack(index: _currentIndex, children: _tabs),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: _onTabSelected,
-        destinations: <NavigationDestination>[
-          const NavigationDestination(
-            icon: Icon(Icons.map_outlined),
-            selectedIcon: Icon(Icons.map),
-            label: 'Mapa',
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          border: Border(
+            top: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.4)),
           ),
-          NavigationDestination(
-            icon: _badgeIcon(
-                const Icon(Icons.chat_bubble_outline), _unreadChat),
-            selectedIcon: _badgeIcon(
-                const Icon(Icons.chat_bubble), _unreadChat),
-            label: 'Czat',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.forum_outlined),
-            selectedIcon: Icon(Icons.forum),
-            label: 'Forum',
-          ),
-          NavigationDestination(
-            icon: _badgeIcon(
-                const Icon(Icons.notifications_outlined), _unreadNotifications),
-            selectedIcon: _badgeIcon(
-                const Icon(Icons.notifications), _unreadNotifications),
-            label: 'Powiadomienia',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Profil',
-          ),
-        ],
+        ),
+        child: NavigationBar(
+          selectedIndex: _currentIndex,
+          onDestinationSelected: _onTabSelected,
+          destinations: <NavigationDestination>[
+            const NavigationDestination(
+              icon: Icon(Icons.map_outlined),
+              selectedIcon: Icon(Icons.map),
+              label: 'Mapa',
+            ),
+            NavigationDestination(
+              icon: _badgeIcon(const Icon(Icons.chat_bubble_outline), _unreadChat),
+              selectedIcon: _badgeIcon(const Icon(Icons.chat_bubble), _unreadChat),
+              label: 'Czat',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.forum_outlined),
+              selectedIcon: Icon(Icons.forum),
+              label: 'Forum',
+            ),
+            NavigationDestination(
+              icon: _badgeIcon(const Icon(Icons.notifications_outlined), _unreadNotifications),
+              selectedIcon: _badgeIcon(const Icon(Icons.notifications), _unreadNotifications),
+              label: 'Powiadomienia',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person),
+              label: 'Profil',
+            ),
+          ],
+        ),
       ),
     );
   }

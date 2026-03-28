@@ -1,3 +1,4 @@
+import 'package:activefriends/src/app/theme/app_palette.dart';
 import 'package:activefriends/src/features/profile/presentation/event_details_screen.dart';
 import 'package:activefriends/src/features/profile/presentation/profile_service.dart';
 import 'package:activefriends/src/models/event.dart'; // upewnij się, że ścieżka jest poprawna
@@ -9,6 +10,7 @@ class MyEventsScreen extends StatefulWidget {
 
   @override
   State<MyEventsScreen> createState() => _MyEventsScreenState();
+  
 }
 
 class _MyEventsScreenState extends State<MyEventsScreen> {
@@ -29,9 +31,9 @@ class _MyEventsScreenState extends State<MyEventsScreen> {
       setState(() => _myEvents = events);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Błąd ładowania: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Błąd ładowania: $e')));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -40,8 +42,6 @@ class _MyEventsScreenState extends State<MyEventsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
       appBar: AppBar(title: const Text('Moje wydarzenia')),
       body: _isLoading
@@ -56,7 +56,7 @@ class _MyEventsScreenState extends State<MyEventsScreen> {
                       separatorBuilder: (_, __) => const SizedBox(height: 12),
                       itemBuilder: (context, index) {
                         final event = _myEvents[index];
-                        return _EventTile(event: event);
+                        return _EventTile(event: event, onRefresh: _loadEvents,);
                       },
                     ),
             ),
@@ -64,10 +64,15 @@ class _MyEventsScreenState extends State<MyEventsScreen> {
   }
 
   Widget _buildEmptyState() {
-    return ListView( // ListView potrzebny, żeby RefreshIndicator działał
+    return ListView(
+      // ListView potrzebny, żeby RefreshIndicator działał
       children: [
         SizedBox(height: MediaQuery.of(context).size.height * 0.2),
-        const Icon(Icons.event_busy, size: 80, color: Colors.grey),
+        Icon(
+          Icons.event_busy,
+          size: 80,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
         const SizedBox(height: 16),
         const Center(child: Text('Nie stworzyłeś jeszcze żadnych wydarzeń.')),
       ],
@@ -77,18 +82,31 @@ class _MyEventsScreenState extends State<MyEventsScreen> {
 
 class _EventTile extends StatelessWidget {
   final Event event;
-  const _EventTile({required this.event});
+  final VoidCallback onRefresh;
+  const _EventTile({required this.event, required this.onRefresh});
+
+  String _formatDateRange() {
+    final DateFormat fmt = DateFormat('dd.MM.yyyy • HH:mm');
+    if (event.startsAt == null && event.endsAt == null) {
+      return 'Termin nieustalony';
+    }
+    if (event.startsAt != null && event.endsAt != null) {
+      return '${fmt.format(event.startsAt!.toLocal())} - ${fmt.format(event.endsAt!.toLocal())}';
+    }
+    if (event.startsAt != null) {
+      return fmt.format(event.startsAt!.toLocal());
+    }
+    return 'Do: ${fmt.format(event.endsAt!.toLocal())}';
+  }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
     // Logika koloru i ikony zależnie od scenariusza (taka jak na mapie)
-    final Color scenarioColor = switch (event.scenario) {
-      EventScenario.bikeRide => const Color(0xFF0F7D31),
-      EventScenario.emergency => const Color(0xFFD14343),
-      EventScenario.social => const Color(0xFF7B4AC8),
-    };
+    final Color scenarioColor = AppPalette.scenarioColorByName(
+      event.scenario.name,
+    );
 
     final IconData scenarioIcon = switch (event.scenario) {
       EventScenario.bikeRide => Icons.directions_bike,
@@ -124,25 +142,32 @@ class _EventTile extends StatelessWidget {
               children: [
                 const Icon(Icons.location_on_outlined, size: 14),
                 const SizedBox(width: 4),
-                Text(event.city),
+                Expanded(
+                  child: Text(
+                    event.subtitle?.trim().isNotEmpty == true
+                        ? event.subtitle!
+                        : event.city,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
-            if (event.startsAt != null) ...[
-              const SizedBox(height: 2),
-              Text(
-                DateFormat('dd.MM.yyyy • HH:mm').format(event.startsAt!),
-                style: const TextStyle(fontSize: 12),
-              ),
-            ],
+            const SizedBox(height: 2),
+            Text(_formatDateRange(), style: const TextStyle(fontSize: 12)),
           ],
         ),
         trailing: _StatusBadge(status: event.status),
-        onTap: () {
-          Navigator.of(context).push(
+        onTap: () async {
+          final bool? result = await Navigator.of(context).push<bool>(
             MaterialPageRoute(
               builder: (context) => EventDetailsScreen(event: event),
             ),
           );
+
+          if (result == true) {
+            onRefresh(); // Wywołujemy odświeżanie przekazane z góry
+          }
         },
       ),
     );
@@ -155,7 +180,10 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = status == EventStatus.open ? Colors.green : Colors.grey;
+    final ColorScheme cs = Theme.of(context).colorScheme;
+    final Color color = status == EventStatus.open
+        ? AppPalette.success
+        : cs.onSurfaceVariant;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -164,7 +192,11 @@ class _StatusBadge extends StatelessWidget {
       ),
       child: Text(
         status.name.toUpperCase(),
-        style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }

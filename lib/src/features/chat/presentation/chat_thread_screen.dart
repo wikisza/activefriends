@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:activefriends/src/app/theme/app_palette.dart';
 import 'package:activefriends/src/features/chat/data/chat_repository.dart';
 import 'package:activefriends/src/features/chat/domain/chat_message.dart';
 import 'package:flutter/material.dart';
@@ -25,6 +26,7 @@ class ChatThreadScreen extends StatefulWidget {
   final String? conversationId;
   final bool isGroup;
   final String? groupTitle;
+
   /// Wymagane dla czatów grupowych — używane do ensure membership.
   final String? eventId;
 
@@ -70,7 +72,10 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
     _channel = null;
     if (previous != null) unawaited(_client.removeChannel(previous));
 
-    setState(() { _error = null; _loading = true; });
+    setState(() {
+      _error = null;
+      _loading = true;
+    });
 
     try {
       String cid;
@@ -98,13 +103,26 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
         }
       }
 
-      setState(() { _messages = initial; _loading = false; });
+      setState(() {
+        _messages = initial;
+        _loading = false;
+      });
       _channel = _repo.subscribeToNewMessages(cid, _onRealtimeInsert);
       _scrollToEnd();
     } on PostgrestException catch (e) {
-      if (mounted) setState(() { _error = e.message; _loading = false; });
+      if (mounted) {
+        setState(() {
+          _error = e.message;
+          _loading = false;
+        });
+      }
     } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -152,14 +170,16 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
       if (mounted) _scrollToEnd();
     } on PostgrestException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message)),
+        );
         _textController.text = text;
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.toString())));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString())),
+        );
         _textController.text = text;
       }
     } finally {
@@ -173,47 +193,59 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (BuildContext ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Center(
-                child: Container(
-                  width: 36, height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
+      builder: (BuildContext ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Theme.of(ctx).colorScheme.outlineVariant,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 8, mainAxisSpacing: 4, crossAxisSpacing: 4,
-                ),
-                itemCount: _commonEmojis.length,
-                itemBuilder: (BuildContext context, int i) => InkWell(
-                  borderRadius: BorderRadius.circular(8),
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    _textController.text = _textController.text + _commonEmojis[i];
-                    _textController.selection = TextSelection.fromPosition(
-                      TextPosition(offset: _textController.text.length),
+                const SizedBox(height: 12),
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 8,
+                    mainAxisSpacing: 4,
+                    crossAxisSpacing: 4,
+                  ),
+                  itemCount: _commonEmojis.length,
+                  itemBuilder: (BuildContext context, int i) {
+                    return InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        _textController.text =
+                            _textController.text + _commonEmojis[i];
+                        _textController.selection = TextSelection.fromPosition(
+                          TextPosition(offset: _textController.text.length),
+                        );
+                      },
+                      child: Center(
+                        child: Text(
+                          _commonEmojis[i],
+                          style: const TextStyle(fontSize: 26),
+                        ),
+                      ),
                     );
                   },
-                  child: Center(
-                    child: Text(_commonEmojis[i], style: const TextStyle(fontSize: 26)),
-                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -241,8 +273,8 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
     }
     return CircleAvatar(
       radius: radius,
-      backgroundColor: const Color(0xFFE4F2E7),
-      foregroundColor: const Color(0xFF1E8E3E),
+      backgroundColor: AppPalette.successSoft,
+      foregroundColor: AppPalette.success,
       child: Text(
         widget.peerDisplayName.isNotEmpty
             ? widget.peerDisplayName[0].toUpperCase()
@@ -307,12 +339,16 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: <Widget>[
-                        Text(_error!, textAlign: TextAlign.center,
-                            style: theme.textTheme.bodyLarge),
+                        Text(
+                          _error!,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.bodyLarge,
+                        ),
                         const SizedBox(height: 16),
                         FilledButton(
-                            onPressed: _bootstrap,
-                            child: const Text('Spróbuj ponownie')),
+                          onPressed: _bootstrap,
+                          child: const Text('Spróbuj ponownie'),
+                        ),
                       ],
                     ),
                   ),
@@ -324,14 +360,17 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                           ? Center(
                               child: Text(
                                 'Napisz pierwszą wiadomość.',
-                                style: theme.textTheme.bodyMedium
-                                    ?.copyWith(color: cs.onSurfaceVariant),
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: cs.onSurfaceVariant,
+                                ),
                               ),
                             )
                           : ListView.builder(
                               controller: _scrollController,
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 12),
+                                horizontal: 12,
+                                vertical: 12,
+                              ),
                               itemCount: _messages.length,
                               itemBuilder: (BuildContext context, int i) {
                                 final ChatMessage m = _messages[i];
@@ -396,11 +435,15 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(22),
-                                    borderSide:
-                                        BorderSide(color: cs.primary, width: 1.5),
+                                    borderSide: BorderSide(
+                                      color: cs.primary,
+                                      width: 1.5,
+                                    ),
                                   ),
                                   contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 10),
+                                    horizontal: 16,
+                                    vertical: 10,
+                                  ),
                                 ),
                                 onSubmitted: (_) => _send(),
                               ),
@@ -410,8 +453,11 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                                 ? const Padding(
                                     padding: EdgeInsets.all(10),
                                     child: SizedBox(
-                                      width: 24, height: 24,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
                                     ),
                                   )
                                 : IconButton.filled(
@@ -458,9 +504,15 @@ class _MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final BorderRadius radius = mine
         ? const BorderRadius.only(
-            topLeft: _big, topRight: _big, bottomLeft: _big, bottomRight: _small)
+            topLeft: _big,
+            topRight: _big,
+            bottomLeft: _big,
+            bottomRight: _small,
+          )
         : BorderRadius.only(
-            topLeft: _big, topRight: _big, bottomRight: _big,
+            topLeft: _big,
+            topRight: _big,
+            bottomRight: _big,
             bottomLeft: showAvatar ? _small : _big,
           );
 
@@ -527,7 +579,9 @@ class _MessageBubble extends StatelessWidget {
                       borderRadius: radius,
                     ),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 9),
+                      horizontal: 14,
+                      vertical: 9,
+                    ),
                     child: Column(
                       crossAxisAlignment: mine
                           ? CrossAxisAlignment.end

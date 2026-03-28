@@ -1,5 +1,7 @@
+import 'package:activefriends/src/app/theme/app_palette.dart';
 import 'package:activefriends/src/features/map/domain/event_models.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 class EventPreviewPanel extends StatelessWidget {
   const EventPreviewPanel({
@@ -28,6 +30,21 @@ class EventPreviewPanel extends StatelessWidget {
   bool get _isHelper => event.participationRole == 'helper';
   bool get _isOrganizer => event.participationRole == 'organizer';
 
+  String _dateRangeLabel() {
+    if (event.startsAt == null && event.endsAt == null) {
+      return 'Termin nieustalony';
+    }
+
+    final DateFormat formatter = DateFormat('dd.MM.yyyy • HH:mm');
+    if (event.startsAt != null && event.endsAt != null) {
+      return '${formatter.format(event.startsAt!.toLocal())} - ${formatter.format(event.endsAt!.toLocal())}';
+    }
+    if (event.startsAt != null) {
+      return formatter.format(event.startsAt!.toLocal());
+    }
+    return 'Do: ${formatter.format(event.endsAt!.toLocal())}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
@@ -37,9 +54,9 @@ class EventPreviewPanel extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.fromLTRB(14, 0, 14, bottomPadding),
         child: Material(
-          elevation: 10,
+          elevation: 6,
           borderRadius: BorderRadius.circular(20),
-          color: Colors.white,
+          color: theme.colorScheme.surface,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
             child: Column(
@@ -81,21 +98,56 @@ class EventPreviewPanel extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 8),
-                Text(event.subtitle, style: theme.textTheme.bodyMedium),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    const Padding(
+                      padding: EdgeInsets.only(top: 2),
+                      child: Icon(Icons.calendar_today, size: 16),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        _dateRangeLabel(),
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    const Padding(
+                      padding: EdgeInsets.only(top: 2),
+                      child: Icon(Icons.location_on_outlined, size: 16),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        event.subtitle,
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 10),
-                _photoPlaceholder(event.photoLabel ?? 'Podglad wydarzenia'),
+                _photoPlaceholder(
+                  context,
+                  event.photoLabel ?? 'Podglad wydarzenia',
+                ),
                 if (event.badges.isNotEmpty) ...<Widget>[
                   const SizedBox(height: 10),
                   Wrap(
                     spacing: 6,
                     runSpacing: 6,
                     children: event.badges
-                        .map((String badge) => _badge(badge))
+                        .map((String badge) => _badge(context, badge))
                         .toList(growable: false),
                   ),
                 ],
                 const SizedBox(height: 14),
-                ..._actionButtons(),
+                ..._actionButtons(context),
               ],
             ),
           ),
@@ -104,10 +156,11 @@ class EventPreviewPanel extends StatelessWidget {
     );
   }
 
-  List<Widget> _actionButtons() {
+  List<Widget> _actionButtons(BuildContext context) {
     return switch (event.scenario) {
       EventScenario.bikeRide => <Widget>[
         _primaryButton(
+          context,
           _isOrganizer
               ? 'TO TWOJE WYDARZENIE'
               : _isJoined
@@ -119,6 +172,7 @@ class EventPreviewPanel extends StatelessWidget {
       ],
       EventScenario.emergency => <Widget>[
         _primaryButton(
+          context,
           _isOrganizer
               ? 'TO TWOJE ZGLOSZENIE'
               : _isHelper
@@ -130,10 +184,11 @@ class EventPreviewPanel extends StatelessWidget {
           enabled: !_isJoined,
         ),
         const SizedBox(height: 10),
-        _secondaryButton('Zglos lokalnie', onReportLocal),
+        _secondaryButton(context, 'Zglos lokalnie', onReportLocal),
       ],
       EventScenario.social => <Widget>[
         _primaryButton(
+          context,
           _isOrganizer
               ? 'TO TWOJA GRUPA'
               : _isJoined
@@ -147,6 +202,7 @@ class EventPreviewPanel extends StatelessWidget {
   }
 
   Widget _primaryButton(
+    BuildContext context,
     String label,
     VoidCallback onPressed, {
     bool enabled = true,
@@ -157,8 +213,6 @@ class EventPreviewPanel extends StatelessWidget {
       child: ElevatedButton(
         onPressed: isBusy || !enabled ? null : onPressed,
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF1E8E3E),
-          foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
@@ -171,21 +225,23 @@ class EventPreviewPanel extends StatelessWidget {
     );
   }
 
-  Widget _secondaryButton(String label, VoidCallback onPressed) {
+  Widget _secondaryButton(
+    BuildContext context,
+    String label,
+    VoidCallback onPressed,
+  ) {
     return SizedBox(
       width: double.infinity,
       height: 50,
       child: OutlinedButton(
         onPressed: isBusy ? null : onPressed,
         style: OutlinedButton.styleFrom(
-          foregroundColor: Colors.black87,
-          side: const BorderSide(color: Color(0xFFCCD3DB)),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
           backgroundColor: _isEmergency
-              ? const Color(0xFFF6F8FA)
-              : Colors.white,
+              ? Theme.of(context).colorScheme.surfaceContainerLowest
+              : Theme.of(context).colorScheme.surface,
         ),
         child: Text(label),
       ),
@@ -195,8 +251,8 @@ class EventPreviewPanel extends StatelessWidget {
   Widget _avatar(String name) {
     final String initials = name.isNotEmpty ? name.characters.first : '?';
     return CircleAvatar(
-      backgroundColor: const Color(0xFFE4F2E7),
-      foregroundColor: const Color(0xFF1E8E3E),
+      backgroundColor: AppPalette.successSoft,
+      foregroundColor: AppPalette.success,
       radius: 18,
       child: Text(
         initials.toUpperCase(),
@@ -205,14 +261,17 @@ class EventPreviewPanel extends StatelessWidget {
     );
   }
 
-  Widget _photoPlaceholder(String label) {
+  Widget _photoPlaceholder(BuildContext context, String label) {
     return Container(
       width: double.infinity,
       height: 94,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
-        gradient: const LinearGradient(
-          colors: <Color>[Color(0xFFE9F1F8), Color(0xFFD3E4F2)],
+        gradient: LinearGradient(
+          colors: <Color>[
+            Theme.of(context).colorScheme.secondaryContainer,
+            Theme.of(context).colorScheme.surfaceContainerHighest,
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -220,12 +279,15 @@ class EventPreviewPanel extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
-          const Icon(Icons.photo_outlined, color: Color(0xFF335A75)),
+          Icon(
+            Icons.photo_outlined,
+            color: Theme.of(context).colorScheme.onSecondaryContainer,
+          ),
           const SizedBox(width: 8),
           Text(
             label,
-            style: const TextStyle(
-              color: Color(0xFF335A75),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSecondaryContainer,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -234,11 +296,11 @@ class EventPreviewPanel extends StatelessWidget {
     );
   }
 
-  Widget _badge(String label) {
+  Widget _badge(BuildContext context, String label) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFFF3F6F9),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
