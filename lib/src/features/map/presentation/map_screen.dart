@@ -1,3 +1,5 @@
+import 'package:activefriends/src/features/auth/data/auth_service.dart';
+import 'package:activefriends/src/features/chat/presentation/chat_thread_screen.dart';
 import 'package:activefriends/src/features/map/data/event_api_client.dart';
 import 'package:activefriends/src/features/map/data/event_repository.dart';
 import 'package:activefriends/src/features/map/data/mock_event_repository.dart';
@@ -25,6 +27,7 @@ class _MapScreenState extends State<MapScreen> {
   late final http.Client _httpClient;
   late final EventRepository _repository;
   late final RouteService _routeService;
+  final AuthService _authService = AuthService();
 
   final List<String> _availableTopics = const <String>['Rower', 'Ceramika', 'Pomoc'];
   Set<String> _selectedTopics = <String>{'Rower', 'Ceramika', 'Pomoc'};
@@ -175,6 +178,31 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
+  void _openOrganizerChat() {
+    final EventPin? event = _selectedEvent;
+    if (event == null) {
+      return;
+    }
+
+    final String? myId = _authService.currentUser?.id;
+    if (myId != null && myId == event.organizer.id) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nie możesz napisać do samego siebie.')),
+      );
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => ChatThreadScreen(
+          peerUserId: event.organizer.id,
+          peerDisplayName: event.organizer.displayName,
+          contextEventTitle: event.title,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -236,6 +264,7 @@ class _MapScreenState extends State<MapScreen> {
               onAskQuestion: _askQuestion,
               onHelp: _joinEvent,
               onReportLocal: _reportLocal,
+              onChatWithOrganizer: _openOrganizerChat,
             ),
         ],
       ),
