@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:activefriends/src/features/chat/domain/chat_message.dart';
 import 'package:activefriends/src/features/chat/domain/conversation_summary.dart';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Pobieranie historii, wysyłka i Realtime dla tabel `conversations` / `messages`.
@@ -140,8 +141,8 @@ class ChatRepository {
     }
 
     final Set<String> peerIds = peerByConv.values.toSet();
-    final Map<String, String> namesByUserId =
-        await _fetchDisplayNames(peerIds);
+    final Map<String, ({String name, String? avatarUrl})> peerInfo =
+        await _fetchPeerInfo(peerIds);
 
     final List<dynamic> recentMsgs = await _client
         .from('messages')
@@ -169,11 +170,13 @@ class ChatRepository {
       }
       final Map<String, dynamic>? last = lastByConv[cid];
       final String? atRaw = last?['created_at']?.toString();
+      final ({String name, String? avatarUrl})? info = peerInfo[peerId];
       out.add(
         ConversationSummary(
           conversationId: cid,
           peerUserId: peerId,
-          peerDisplayName: namesByUserId[peerId] ?? 'Użytkownik',
+          peerDisplayName: info?.name ?? 'Użytkownik',
+          peerAvatarUrl: info?.avatarUrl,
           lastMessagePreview: last?['body']?.toString(),
           lastMessageAt:
               atRaw != null ? DateTime.tryParse(atRaw) : null,
@@ -198,22 +201,72 @@ class ChatRepository {
     return out;
   }
 
-  Future<Map<String, String>> _fetchDisplayNames(Set<String> userIds) async {
+  /// Subskrypcja nowych konwersacji (nowy wpis w conversation_members dla bieżącego użytkownika).
+  RealtimeChannel subscribeToNewConversations(VoidCallback onNew) {
+    final String? uid = _myId;
+    final RealtimeChannel channel =
+        _client.channel('conversation_members:me');
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.insert,
+      schema: 'public',
+      table: 'conversation_members',
+      filter: uid != null
+          ? PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'user_id',
+              value: uid,
+            )
+          : null,
+      callback: (_) => onNew(),
+    );
+    channel.subscribe();
+    return channel;
+  }
+
+  /// Subskrypcja nowych wiadomości globalnie (dla badge powiadomień).
+  RealtimeChannel subscribeToAllNewMessages(
+    void Function(String senderId) onInsert,
+  ) {
+    final RealtimeChannel channel = _client.channel('messages:global');
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.insert,
+      schema: 'public',
+      table: 'messages',
+      callback: (PostgresChangePayload payload) {
+        final String? sender =
+            payload.newRecord['sender_id']?.toString();
+        if (sender != null) {
+          onInsert(sender);
+        }
+      },
+    );
+    channel.subscribe();
+    return channel;
+  }
+
+  Future<Map<String, ({String name, String? avatarUrl})>> _fetchPeerInfo(
+    Set<String> userIds,
+  ) async {
     if (userIds.isEmpty) {
-      return <String, String>{};
+      return <String, ({String name, String? avatarUrl})>{};
     }
     final List<dynamic> rows = await _client
         .from('profiles')
-        .select('id,display_name')
+        .select('id,display_name,avatar_url')
         .inFilter('id', userIds.toList(growable: false));
 
-    final Map<String, String> map = <String, String>{};
-    for (final Map<String, dynamic> row in rows.whereType<Map<String, dynamic>>()) {
+    final Map<String, ({String name, String? avatarUrl})> map =
+        <String, ({String name, String? avatarUrl})>{};
+    for (final Map<String, dynamic> row
+        in rows.whereType<Map<String, dynamic>>()) {
       final String id = row['id']?.toString() ?? '';
       if (id.isEmpty) {
         continue;
       }
-      map[id] = row['display_name']?.toString() ?? 'Użytkownik';
+      map[id] = (
+        name: row['display_name']?.toString() ?? 'Użytkownik',
+        avatarUrl: row['avatar_url']?.toString(),
+      );
     }
     return map;
   }
