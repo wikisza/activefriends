@@ -27,6 +27,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isUploadingAvatar = false;
   bool _isSavingTopics = false;
   final ImagePicker _picker = ImagePicker();
+  bool _isTopicsExpanded = false;
 
   @override
   void initState() {
@@ -425,36 +426,52 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
-                          children: kSupportedTopics
-                              .map((String topic) {
-                                final bool isSelected = subscribedTopics
-                                    .contains(topic);
-                                return FilterChip(
-                                  label: Text(topic),
-                                  selected: isSelected,
-                                  onSelected: _isSavingTopics
-                                      ? null
-                                      : (bool selected) {
-                                          final Set<String> next =
-                                              Set<String>.from(
-                                                subscribedTopics,
-                                              );
-                                          if (selected) {
-                                            next.add(topic);
-                                          } else {
-                                            next.remove(topic);
-                                          }
-                                          _saveSubscribedTopics(next);
-                                        },
-                                );
-                              })
-                              .toList(growable: false),
+                          children: [
+                            ...(_isTopicsExpanded 
+                                    ? kSupportedTopics 
+                                    : kSupportedTopics.take(5))
+                                .map((String topic) {
+                              final bool isSelected = subscribedTopics.contains(topic);
+                              return FilterChip(
+                                label: Text(topic),
+                                selected: isSelected,
+                                onSelected: _isSavingTopics
+                                    ? null
+                                    : (bool selected) {
+                                        final Set<String> next = Set<String>.from(subscribedTopics);
+                                        if (selected) {
+                                          next.add(topic);
+                                        } else {
+                                          next.remove(topic);
+                                        }
+                                        _saveSubscribedTopics(next);
+                                      },
+                              );
+                            }),
+                          ],
+                        ),
+                        Center(
+                          child: TextButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                _isTopicsExpanded = !_isTopicsExpanded;
+                              });
+                            },
+                            icon: Icon(
+                              _isTopicsExpanded ? Icons.expand_less : Icons.expand_more,
+                              size: 20,
+                            ),
+                            label: Text(
+                              _isTopicsExpanded ? 'Pokaż mniej' : 'Pokaż wszystkie tematy',
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          ),
                         ),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 30),
+                const Divider(height: 1, indent: 16, endIndent: 16),
                 Card(
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
