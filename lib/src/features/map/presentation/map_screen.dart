@@ -227,6 +227,27 @@ class _MapScreenState extends State<MapScreen>
       if (!mounted) {
         return;
       }
+      final EventPin updatedEvent = EventPin(
+        id: event.id,
+        title: event.title,
+        subtitle: event.subtitle,
+        location: event.location,
+        topic: event.topic,
+        organizer: event.organizer,
+        scenario: event.scenario,
+        badges: event.badges,
+        photoLabel: event.photoLabel,
+        participationRole: role,
+      );
+      setState(() {
+        _selectedEvent = updatedEvent;
+        _pins = _pins
+            .map(
+              (EventPin item) =>
+                  item.id == updatedEvent.id ? updatedEvent : item,
+            )
+            .toList(growable: false);
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

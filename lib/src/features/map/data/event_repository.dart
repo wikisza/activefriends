@@ -134,6 +134,26 @@ class SupabaseEventRepository implements EventRepository {
           .where((String id) => id.isNotEmpty)
           .toSet();
 
+      final String? currentUserId = _client.auth.currentUser?.id;
+      final Map<String, String> participationRoleByEventId = <String, String>{};
+      if (currentUserId != null && eventIds.isNotEmpty) {
+        final List<dynamic> rawParticipants = await _client
+            .from('event_participants')
+            .select('event_id,role')
+            .eq('profile_id', currentUserId)
+            .inFilter('event_id', eventIds.toList(growable: false));
+
+        for (final Map<String, dynamic> row
+            in rawParticipants.whereType<Map<String, dynamic>>()) {
+          final String eventId = row['event_id']?.toString() ?? '';
+          final String role = row['role']?.toString() ?? '';
+          if (eventId.isEmpty || role.isEmpty) {
+            continue;
+          }
+          participationRoleByEventId[eventId] = role;
+        }
+      }
+
       final Map<String, List<String>> badgesByEventId =
           <String, List<String>>{};
       if (eventIds.isNotEmpty) {
@@ -196,6 +216,7 @@ class SupabaseEventRepository implements EventRepository {
               organizer: organizer,
               scenario: scenario,
               badges: badgesByEventId[eventId] ?? <String>[],
+              participationRole: participationRoleByEventId[eventId],
             );
           })
           .where((EventPin item) {

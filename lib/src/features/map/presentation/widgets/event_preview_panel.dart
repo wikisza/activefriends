@@ -24,6 +24,9 @@ class EventPreviewPanel extends StatelessWidget {
   final bool isBusy;
 
   bool get _isEmergency => event.scenario == EventScenario.emergency;
+  bool get _isJoined => event.participationRole != null;
+  bool get _isHelper => event.participationRole == 'helper';
+  bool get _isOrganizer => event.participationRole == 'organizer';
 
   @override
   Widget build(BuildContext context) {
@@ -78,10 +81,7 @@ class EventPreviewPanel extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  event.subtitle,
-                  style: theme.textTheme.bodyMedium,
-                ),
+                Text(event.subtitle, style: theme.textTheme.bodyMedium),
                 const SizedBox(height: 10),
                 _photoPlaceholder(event.photoLabel ?? 'Podglad wydarzenia'),
                 if (event.badges.isNotEmpty) ...<Widget>[
@@ -107,29 +107,61 @@ class EventPreviewPanel extends StatelessWidget {
   List<Widget> _actionButtons() {
     return switch (event.scenario) {
       EventScenario.bikeRide => <Widget>[
-          _primaryButton('DOLACZ', onJoin),
-        ],
+        _primaryButton(
+          _isOrganizer
+              ? 'TO TWOJE WYDARZENIE'
+              : _isJoined
+              ? 'DOLACZYLES'
+              : 'DOLACZ',
+          onJoin,
+          enabled: !_isJoined,
+        ),
+      ],
       EventScenario.emergency => <Widget>[
-          _primaryButton('MOGE POMOC', onHelp),
-          const SizedBox(height: 10),
-          _secondaryButton('Zglos lokalnie', onReportLocal),
-        ],
+        _primaryButton(
+          _isOrganizer
+              ? 'TO TWOJE ZGLOSZENIE'
+              : _isHelper
+              ? 'POMAGASZ'
+              : _isJoined
+              ? 'DOLACZYLES'
+              : 'MOGE POMOC',
+          onHelp,
+          enabled: !_isJoined,
+        ),
+        const SizedBox(height: 10),
+        _secondaryButton('Zglos lokalnie', onReportLocal),
+      ],
       EventScenario.social => <Widget>[
-          _primaryButton('DOLACZ DO GRUPY', onJoin),
-        ],
+        _primaryButton(
+          _isOrganizer
+              ? 'TO TWOJA GRUPA'
+              : _isJoined
+              ? 'JUZ W GRUPIE'
+              : 'DOLACZ DO GRUPY',
+          onJoin,
+          enabled: !_isJoined,
+        ),
+      ],
     };
   }
 
-  Widget _primaryButton(String label, VoidCallback onPressed) {
+  Widget _primaryButton(
+    String label,
+    VoidCallback onPressed, {
+    bool enabled = true,
+  }) {
     return SizedBox(
       width: double.infinity,
       height: 52,
       child: ElevatedButton(
-        onPressed: isBusy ? null : onPressed,
+        onPressed: isBusy || !enabled ? null : onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF1E8E3E),
           foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
         child: Text(
           label,
@@ -148,8 +180,12 @@ class EventPreviewPanel extends StatelessWidget {
         style: OutlinedButton.styleFrom(
           foregroundColor: Colors.black87,
           side: const BorderSide(color: Color(0xFFCCD3DB)),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          backgroundColor: _isEmergency ? const Color(0xFFF6F8FA) : Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          backgroundColor: _isEmergency
+              ? const Color(0xFFF6F8FA)
+              : Colors.white,
         ),
         child: Text(label),
       ),

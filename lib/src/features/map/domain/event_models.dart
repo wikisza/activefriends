@@ -34,6 +34,7 @@ class EventPin {
     required this.scenario,
     required this.badges,
     this.photoLabel,
+    this.participationRole,
   });
 
   final String id;
@@ -45,4 +46,5 @@ class EventPin {
   final EventScenario scenario;
   final List<String> badges;
   final String? photoLabel;
+  final String? participationRole;
 }
