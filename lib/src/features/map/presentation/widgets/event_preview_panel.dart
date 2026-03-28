@@ -1,5 +1,6 @@
 import 'package:activefriends/src/features/map/domain/event_models.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 class EventPreviewPanel extends StatelessWidget {
   const EventPreviewPanel({
@@ -27,6 +28,21 @@ class EventPreviewPanel extends StatelessWidget {
   bool get _isJoined => event.participationRole != null;
   bool get _isHelper => event.participationRole == 'helper';
   bool get _isOrganizer => event.participationRole == 'organizer';
+
+  String _dateRangeLabel() {
+    if (event.startsAt == null && event.endsAt == null) {
+      return 'Termin nieustalony';
+    }
+
+    final DateFormat formatter = DateFormat('dd.MM.yyyy • HH:mm');
+    if (event.startsAt != null && event.endsAt != null) {
+      return '${formatter.format(event.startsAt!.toLocal())} - ${formatter.format(event.endsAt!.toLocal())}';
+    }
+    if (event.startsAt != null) {
+      return formatter.format(event.startsAt!.toLocal());
+    }
+    return 'Do: ${formatter.format(event.endsAt!.toLocal())}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -81,7 +97,39 @@ class EventPreviewPanel extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 8),
-                Text(event.subtitle, style: theme.textTheme.bodyMedium),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    const Padding(
+                      padding: EdgeInsets.only(top: 2),
+                      child: Icon(Icons.calendar_today, size: 16),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        _dateRangeLabel(),
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    const Padding(
+                      padding: EdgeInsets.only(top: 2),
+                      child: Icon(Icons.location_on_outlined, size: 16),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        event.subtitle,
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 10),
                 _photoPlaceholder(event.photoLabel ?? 'Podglad wydarzenia'),
                 if (event.badges.isNotEmpty) ...<Widget>[

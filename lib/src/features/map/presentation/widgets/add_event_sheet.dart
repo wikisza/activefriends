@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:activefriends/src/features/map/data/event_repository.dart';
 import 'package:activefriends/src/models/event.dart' as model;
 import 'package:flutter/material.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
@@ -62,10 +63,15 @@ class _AddEventSheetState extends State<AddEventSheet> {
   String? _errorMessage;
   LatLng? _resolvedLocation;
   String? _locationLabel;
+  DateTime? _startsAt;
+  DateTime? _endsAt;
 
   @override
   void initState() {
     super.initState();
+    if (widget.location != null) {
+      _resolveAddressFromCoordinates(widget.location!);
+    }
   }
 
   @override
@@ -82,9 +88,9 @@ class _AddEventSheetState extends State<AddEventSheet> {
       _pilne ? model.EventScenario.emergency : _activityType.scenario;
 
   List<String> get _badges => <String>[
-        if (_pilne) 'PILNE',
-        if (_tylkoZweryfikowani) 'TYLKO ZWERYFIKOWANI',
-      ];
+    if (_pilne) 'PILNE',
+    if (_tylkoZweryfikowani) 'TYLKO ZWERYFIKOWANI',
+  ];
 
   LatLng? get _effectiveLocation => widget.location ?? _resolvedLocation;
 
@@ -103,7 +109,9 @@ class _AddEventSheetState extends State<AddEventSheet> {
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
-          setState(() => _errorMessage = 'Brak zgody na dostęp do lokalizacji.');
+          setState(
+            () => _errorMessage = 'Brak zgody na dostęp do lokalizacji.',
+          );
           return;
         }
       }
@@ -115,18 +123,49 @@ class _AddEventSheetState extends State<AddEventSheet> {
         return;
       }
       final Position pos = await Geolocator.getCurrentPosition(
-        locationSettings:
-            const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
+      final LatLng nextLocation = LatLng(pos.latitude, pos.longitude);
       setState(() {
-        _resolvedLocation = LatLng(pos.latitude, pos.longitude);
-        _locationLabel =
-            'Twoja lokalizacja (${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)})';
+        _resolvedLocation = nextLocation;
       });
+      await _resolveAddressFromCoordinates(nextLocation);
     } catch (e) {
       setState(() => _errorMessage = 'Nie udało się pobrać lokalizacji.');
     } finally {
       setState(() => _isLocating = false);
+    }
+  }
+
+  Future<void> _resolveAddressFromCoordinates(LatLng location) async {
+    try {
+      final List<Placemark> placemarks = await placemarkFromCoordinates(
+        location.latitude,
+        location.longitude,
+      );
+      if (placemarks.isEmpty || !mounted) {
+        return;
+      }
+      final Placemark p = placemarks.first;
+      final String street = (p.street ?? '').trim();
+      final String subLocality = (p.subLocality ?? '').trim();
+      final String locality = (p.locality ?? '').trim();
+      final String postalCode = (p.postalCode ?? '').trim();
+
+      final String address = <String>[
+        if (street.isNotEmpty) street,
+        if (subLocality.isNotEmpty) subLocality,
+        if (postalCode.isNotEmpty || locality.isNotEmpty)
+          '${postalCode.isNotEmpty ? '$postalCode ' : ''}$locality'.trim(),
+      ].where((String item) => item.isNotEmpty).join(', ');
+
+      if (address.isNotEmpty) {
+        setState(() => _locationLabel = address);
+      }
+    } catch (_) {
+      // Keep existing label when reverse geocoding fails.
     }
   }
 
@@ -153,11 +192,9 @@ class _AddEventSheetState extends State<AddEventSheet> {
         headers: <String, String>{'User-Agent': 'activefriends-app/1.0'},
       );
       if (response.statusCode == 200) {
-        final List<dynamic> data =
-            jsonDecode(response.body) as List<dynamic>;
+        final List<dynamic> data = jsonDecode(response.body) as List<dynamic>;
         if (data.isNotEmpty) {
-          final Map<String, dynamic> item =
-              data.first as Map<String, dynamic>;
+          final Map<String, dynamic> item = data.first as Map<String, dynamic>;
           final double lat = double.parse(item['lat'] as String);
           final double lon = double.parse(item['lon'] as String);
           setState(() {
@@ -191,17 +228,24 @@ class _AddEventSheetState extends State<AddEventSheet> {
     final LatLng? resolvedLocation = _effectiveLocation;
     if (resolvedLocation == null) {
       setState(() {
-        _errorMessage =
-            'Podaj lokalizację: użyj GPS lub wyszukaj adres.';
+        _errorMessage = 'Podaj lokalizację: użyj GPS lub wyszukaj adres.';
       });
       return;
     }
 
-    final String? userId =
-        Supabase.instance.client.auth.currentUser?.id;
+    final String? userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) {
-      setState(() =>
-          _errorMessage = 'Musisz być zalogowany, aby dodać wydarzenie.');
+      setState(
+        () => _errorMessage = 'Musisz być zalogowany, aby dodać wydarzenie.',
+      );
+      return;
+    }
+
+    if (_startsAt != null && _endsAt != null && _endsAt!.isBefore(_startsAt!)) {
+      setState(() {
+        _errorMessage =
+            'Data zakończenia nie może być wcześniejsza niż data rozpoczęcia.';
+      });
       return;
     }
 
@@ -214,9 +258,11 @@ class _AddEventSheetState extends State<AddEventSheet> {
       final model.Event event = model.Event(
         id: '',
         title: _titleController.text.trim(),
-        subtitle: _meetingPointController.text.trim().isEmpty
-            ? null
-            : _meetingPointController.text.trim(),
+        subtitle: _meetingPointController.text.trim().isNotEmpty
+            ? _meetingPointController.text.trim()
+            : (_locationLabel?.trim().isNotEmpty == true
+                  ? _locationLabel!.trim()
+                  : null),
         description: _descriptionController.text.trim().isEmpty
             ? null
             : _descriptionController.text.trim(),
@@ -226,6 +272,8 @@ class _AddEventSheetState extends State<AddEventSheet> {
         lat: resolvedLocation.latitude,
         lng: resolvedLocation.longitude,
         city: 'Bydgoszcz',
+        startsAt: _startsAt,
+        endsAt: _endsAt,
         createdAt: DateTime.now(),
       );
 
@@ -236,14 +284,138 @@ class _AddEventSheetState extends State<AddEventSheet> {
       }
     } on Exception catch (e) {
       if (mounted) {
-        setState(() =>
-            _errorMessage = e.toString().replaceFirst('Exception: ', ''));
+        setState(
+          () => _errorMessage = e.toString().replaceFirst('Exception: ', ''),
+        );
       }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  String _formatDateTime(DateTime value) {
+    final MaterialLocalizations loc = MaterialLocalizations.of(context);
+    final DateTime local = value.toLocal();
+    final TimeOfDay tod = TimeOfDay.fromDateTime(local);
+    return '${loc.formatMediumDate(local)} ${loc.formatTimeOfDay(tod)}';
+  }
+
+  Future<DateTime?> _pickDateTime({DateTime? initialValue}) async {
+    final DateTime now = DateTime.now();
+    final DateTime initial = initialValue ?? now;
+
+    final DateTime? date = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 5),
+      helpText: 'Wybierz datę',
+    );
+    if (date == null) {
+      return null;
+    }
+
+    final TimeOfDay? time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+      helpText: 'Wybierz godzinę',
+    );
+    if (time == null) {
+      return null;
+    }
+
+    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+  }
+
+  Widget _buildDateRangePicker() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Text(
+          'Termin wydarzenia',
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  final DateTime? picked = await _pickDateTime(
+                    initialValue: _startsAt,
+                  );
+                  if (picked == null || !mounted) {
+                    return;
+                  }
+                  setState(() {
+                    _startsAt = picked;
+                    if (_endsAt != null && _endsAt!.isBefore(picked)) {
+                      _endsAt = picked;
+                    }
+                  });
+                },
+                icon: const Icon(Icons.event_available_outlined),
+                label: Text(
+                  _startsAt == null
+                      ? 'Data od'
+                      : 'Od: ${_formatDateTime(_startsAt!)}',
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  final DateTime? picked = await _pickDateTime(
+                    initialValue: _endsAt ?? _startsAt,
+                  );
+                  if (picked == null || !mounted) {
+                    return;
+                  }
+                  setState(() {
+                    _endsAt = picked;
+                    if (_startsAt != null && _endsAt!.isBefore(_startsAt!)) {
+                      _errorMessage =
+                          'Data zakończenia nie może być wcześniejsza niż data rozpoczęcia.';
+                    } else {
+                      _errorMessage = null;
+                    }
+                  });
+                },
+                icon: const Icon(Icons.event_busy_outlined),
+                label: Text(
+                  _endsAt == null
+                      ? 'Data do'
+                      : 'Do: ${_formatDateTime(_endsAt!)}',
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+            if (_startsAt != null || _endsAt != null) ...<Widget>[
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: () {
+                  setState(() {
+                    _startsAt = null;
+                    _endsAt = null;
+                    _errorMessage = null;
+                  });
+                },
+                tooltip: 'Wyczyść daty',
+                icon: const Icon(Icons.clear),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
   }
 
   // ---------- location UI helpers ----------
@@ -268,8 +440,9 @@ class _AddEventSheetState extends State<AddEventSheet> {
           Expanded(
             child: Text(
               label,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: cs.onPrimaryContainer),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: cs.onPrimaryContainer,
+              ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -308,8 +481,9 @@ class _AddEventSheetState extends State<AddEventSheet> {
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 child: Text(
                   'lub podaj adres',
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: cs.onSurfaceVariant),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
               ),
               const Expanded(child: Divider()),
@@ -359,9 +533,7 @@ class _AddEventSheetState extends State<AddEventSheet> {
 
     return Padding(
       // Push content above keyboard
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.viewInsetsOf(context).bottom,
-      ),
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
@@ -377,8 +549,9 @@ class _AddEventSheetState extends State<AddEventSheet> {
                     Expanded(
                       child: Text(
                         'Nowe wydarzenie',
-                        style: theme.textTheme.titleLarge
-                            ?.copyWith(fontWeight: FontWeight.w700),
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                     IconButton(
@@ -392,9 +565,7 @@ class _AddEventSheetState extends State<AddEventSheet> {
                 if (widget.location != null)
                   _buildLocationChip(
                     context,
-                    label:
-                        '${widget.location!.latitude.toStringAsFixed(5)}, '
-                        '${widget.location!.longitude.toStringAsFixed(5)}',
+                    label: _locationLabel ?? 'Pobieranie dokładnego adresu...',
                     onClear: null,
                     cs: cs,
                     theme: theme,
@@ -402,7 +573,8 @@ class _AddEventSheetState extends State<AddEventSheet> {
                 else if (_resolvedLocation != null)
                   _buildLocationChip(
                     context,
-                    label: _locationLabel ??
+                    label:
+                        _locationLabel ??
                         '${_resolvedLocation!.latitude.toStringAsFixed(5)}, '
                             '${_resolvedLocation!.longitude.toStringAsFixed(5)}',
                     onClear: () => setState(() {
@@ -427,6 +599,9 @@ class _AddEventSheetState extends State<AddEventSheet> {
                     border: OutlineInputBorder(),
                   ),
                 ),
+                const SizedBox(height: 14),
+
+                _buildDateRangePicker(),
                 const SizedBox(height: 14),
 
                 // Title
@@ -537,8 +712,7 @@ class _AddEventSheetState extends State<AddEventSheet> {
                 FilledButton.icon(
                   onPressed: _isLoading ? null : _submit,
                   style: FilledButton.styleFrom(
-                    backgroundColor:
-                        _pilne ? cs.error : cs.primary,
+                    backgroundColor: _pilne ? cs.error : cs.primary,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -549,7 +723,9 @@ class _AddEventSheetState extends State<AddEventSheet> {
                           width: 18,
                           height: 18,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white),
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
                         )
                       : const Icon(Icons.add_location_alt_outlined),
                   label: Text(

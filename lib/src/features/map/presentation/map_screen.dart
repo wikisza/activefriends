@@ -236,6 +236,8 @@ class _MapScreenState extends State<MapScreen>
         organizer: event.organizer,
         scenario: event.scenario,
         badges: event.badges,
+        startsAt: event.startsAt,
+        endsAt: event.endsAt,
         photoLabel: event.photoLabel,
         participationRole: role,
       );

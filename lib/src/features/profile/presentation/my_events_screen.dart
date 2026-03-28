@@ -29,9 +29,9 @@ class _MyEventsScreenState extends State<MyEventsScreen> {
       setState(() => _myEvents = events);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Błąd ładowania: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Błąd ładowania: $e')));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -64,7 +64,8 @@ class _MyEventsScreenState extends State<MyEventsScreen> {
   }
 
   Widget _buildEmptyState() {
-    return ListView( // ListView potrzebny, żeby RefreshIndicator działał
+    return ListView(
+      // ListView potrzebny, żeby RefreshIndicator działał
       children: [
         SizedBox(height: MediaQuery.of(context).size.height * 0.2),
         const Icon(Icons.event_busy, size: 80, color: Colors.grey),
@@ -78,6 +79,20 @@ class _MyEventsScreenState extends State<MyEventsScreen> {
 class _EventTile extends StatelessWidget {
   final Event event;
   const _EventTile({required this.event});
+
+  String _formatDateRange() {
+    final DateFormat fmt = DateFormat('dd.MM.yyyy • HH:mm');
+    if (event.startsAt == null && event.endsAt == null) {
+      return 'Termin nieustalony';
+    }
+    if (event.startsAt != null && event.endsAt != null) {
+      return '${fmt.format(event.startsAt!.toLocal())} - ${fmt.format(event.endsAt!.toLocal())}';
+    }
+    if (event.startsAt != null) {
+      return fmt.format(event.startsAt!.toLocal());
+    }
+    return 'Do: ${fmt.format(event.endsAt!.toLocal())}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -124,16 +139,19 @@ class _EventTile extends StatelessWidget {
               children: [
                 const Icon(Icons.location_on_outlined, size: 14),
                 const SizedBox(width: 4),
-                Text(event.city),
+                Expanded(
+                  child: Text(
+                    event.subtitle?.trim().isNotEmpty == true
+                        ? event.subtitle!
+                        : event.city,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
-            if (event.startsAt != null) ...[
-              const SizedBox(height: 2),
-              Text(
-                DateFormat('dd.MM.yyyy • HH:mm').format(event.startsAt!),
-                style: const TextStyle(fontSize: 12),
-              ),
-            ],
+            const SizedBox(height: 2),
+            Text(_formatDateRange(), style: const TextStyle(fontSize: 12)),
           ],
         ),
         trailing: _StatusBadge(status: event.status),
@@ -164,7 +182,11 @@ class _StatusBadge extends StatelessWidget {
       ),
       child: Text(
         status.name.toUpperCase(),
-        style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }
