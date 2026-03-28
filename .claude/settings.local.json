@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find . -type f -name *forum*)",
+      "Bash(grep -E \"\\\\.\\(sql|dart\\)$\")"
+    ]
+  }
+}

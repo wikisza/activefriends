@@ -50,11 +50,48 @@ class ChatRepository {
         .order('created_at', ascending: true)
         .limit(limit);
 
-    return rows
+    final List<ChatMessage> messages = rows
         .whereType<Map<String, dynamic>>()
         .map(ChatMessage.tryFromRow)
         .whereType<ChatMessage>()
         .toList(growable: false);
+
+    // Pobierz profile nadawców dla wiadomości grupowych
+    final Set<String> senderIds =
+        messages.map((ChatMessage m) => m.senderId).toSet();
+    if (senderIds.isEmpty) return messages;
+
+    final Map<String, ({String name, String? avatarUrl})> profiles =
+        await _fetchPeerInfo(senderIds);
+
+    return messages.map((ChatMessage m) {
+      final p = profiles[m.senderId];
+      if (p == null) return m;
+      return m.withSender(name: p.name, avatarUrl: p.avatarUrl);
+    }).toList(growable: false);
+  }
+
+  /// Dołącz bieżącego użytkownika do czatu grupowego (wywołaj przy otwieraniu).
+  Future<void> ensureGroupConversationMember(String conversationId) async {
+    await _client.rpc(
+      'ensure_group_conversation_member',
+      params: <String, dynamic>{'p_conversation_id': conversationId},
+    );
+  }
+
+  /// Pobiera profil nadawcy z bazy (dla wiadomości Realtime bez join).
+  Future<({String name, String? avatarUrl})?> fetchSenderProfile(
+      String userId) async {
+    final Map<String, dynamic>? row = await _client
+        .from('profiles')
+        .select('display_name,avatar_url')
+        .eq('id', userId)
+        .maybeSingle();
+    if (row == null) return null;
+    return (
+      name: row['display_name']?.toString() ?? 'Użytkownik',
+      avatarUrl: row['avatar_url']?.toString(),
+    );
   }
 
   Future<void> sendMessage(String conversationId, String body) async {
@@ -89,10 +126,7 @@ class ChatRepository {
         value: conversationId,
       ),
       callback: (PostgresChangePayload payload) {
-        final Map<String, dynamic>? rec = payload.newRecord;
-        if (rec == null) {
-          return;
-        }
+        final Map<String, dynamic> rec = payload.newRecord;
         final ChatMessage? m = ChatMessage.tryFromRow(rec);
         if (m != null) {
           onInsert(m);
@@ -103,47 +137,67 @@ class ChatRepository {
     return channel;
   }
 
+  /// Tworzy lub zwraca istniejący czat grupowy dla eventu.
+  Future<String> getOrCreateEventGroupConversation(String eventId) async {
+    final dynamic res = await _client.rpc(
+      'get_or_create_event_group_conversation',
+      params: <String, dynamic>{'p_event_id': eventId},
+    );
+    final String id = res?.toString() ?? '';
+    if (id.isEmpty) throw StateError('Brak id konwersacji grupowej.');
+    return id;
+  }
+
   Future<List<ConversationSummary>> fetchMyConversations() async {
     final String? myId = _myId;
-    if (myId == null) {
-      return <ConversationSummary>[];
-    }
+    if (myId == null) return <ConversationSummary>[];
 
+    // 1. Pobierz konwersacje użytkownika z meta-danymi (is_direct, title, event_id)
     final List<dynamic> mine = await _client
         .from('conversation_members')
-        .select('conversation_id')
+        .select('conversation_id, conversations!inner(id, is_direct, title, event_id)')
         .eq('user_id', myId);
 
-    final Set<String> convIds = mine
-        .whereType<Map<String, dynamic>>()
-        .map((Map<String, dynamic> r) => r['conversation_id']?.toString() ?? '')
-        .where((String id) => id.isNotEmpty)
-        .toSet();
+    if (mine.isEmpty) return <ConversationSummary>[];
 
-    if (convIds.isEmpty) {
-      return <ConversationSummary>[];
+    // Mapa cid → dane konwersacji
+    final Map<String, Map<String, dynamic>> convMeta = <String, Map<String, dynamic>>{};
+    for (final Map<String, dynamic> row in mine.whereType<Map<String, dynamic>>()) {
+      final String cid = row['conversation_id']?.toString() ?? '';
+      final Map<String, dynamic>? conv = row['conversations'] as Map<String, dynamic>?;
+      if (cid.isNotEmpty && conv != null) convMeta[cid] = conv;
     }
+    final Set<String> convIds = convMeta.keys.toSet();
+    if (convIds.isEmpty) return <ConversationSummary>[];
 
+    // 2. Wszyscy członkowie tych konwersacji
     final List<dynamic> allMembers = await _client
         .from('conversation_members')
         .select('conversation_id,user_id')
         .inFilter('conversation_id', convIds.toList(growable: false));
 
+    // direct: peer per conv; group: member count
     final Map<String, String> peerByConv = <String, String>{};
-    for (final Map<String, dynamic> row
-        in allMembers.whereType<Map<String, dynamic>>()) {
+    final Map<String, int> memberCount = <String, int>{};
+    for (final Map<String, dynamic> row in allMembers.whereType<Map<String, dynamic>>()) {
       final String cid = row['conversation_id']?.toString() ?? '';
       final String uid = row['user_id']?.toString() ?? '';
-      if (cid.isEmpty || uid.isEmpty || uid == myId) {
-        continue;
-      }
-      peerByConv[cid] = uid;
+      if (cid.isEmpty || uid.isEmpty) continue;
+      memberCount[cid] = (memberCount[cid] ?? 0) + 1;
+      if (uid != myId) peerByConv[cid] = uid;
     }
 
-    final Set<String> peerIds = peerByConv.values.toSet();
+    // 3. Profile peerów (tylko direct)
+    final Set<String> directConvIds = convMeta.entries
+        .where((e) => e.value['is_direct'] == true)
+        .map((e) => e.key)
+        .toSet();
+    final Set<String> peerIds =
+        peerByConv.entries.where((e) => directConvIds.contains(e.key)).map((e) => e.value).toSet();
     final Map<String, ({String name, String? avatarUrl})> peerInfo =
         await _fetchPeerInfo(peerIds);
 
+    // 4. Ostatnie wiadomości
     final List<dynamic> recentMsgs = await _client
         .from('messages')
         .select('conversation_id,body,created_at')
@@ -151,51 +205,54 @@ class ChatRepository {
         .order('created_at', ascending: false)
         .limit(500);
 
-    final Map<String, Map<String, dynamic>> lastByConv =
-        <String, Map<String, dynamic>>{};
-    for (final Map<String, dynamic> row
-        in recentMsgs.whereType<Map<String, dynamic>>()) {
+    final Map<String, Map<String, dynamic>> lastByConv = <String, Map<String, dynamic>>{};
+    for (final Map<String, dynamic> row in recentMsgs.whereType<Map<String, dynamic>>()) {
       final String cid = row['conversation_id']?.toString() ?? '';
-      if (cid.isEmpty || lastByConv.containsKey(cid)) {
-        continue;
-      }
+      if (cid.isEmpty || lastByConv.containsKey(cid)) continue;
       lastByConv[cid] = row;
     }
 
+    // 5. Złóż wynik
     final List<ConversationSummary> out = <ConversationSummary>[];
     for (final String cid in convIds) {
-      final String? peerId = peerByConv[cid];
-      if (peerId == null) {
-        continue;
-      }
+      final Map<String, dynamic> meta = convMeta[cid]!;
+      final bool isGroup = meta['is_direct'] == false;
       final Map<String, dynamic>? last = lastByConv[cid];
       final String? atRaw = last?['created_at']?.toString();
-      final ({String name, String? avatarUrl})? info = peerInfo[peerId];
-      out.add(
-        ConversationSummary(
+
+      if (isGroup) {
+        out.add(ConversationSummary(
+          conversationId: cid,
+          peerUserId: '',
+          peerDisplayName: '',
+          lastMessagePreview: last?['body']?.toString(),
+          lastMessageAt: atRaw != null ? DateTime.tryParse(atRaw) : null,
+          isGroup: true,
+          groupTitle: meta['title']?.toString(),
+          memberCount: memberCount[cid] ?? 0,
+          eventId: meta['event_id']?.toString(),
+        ));
+      } else {
+        final String? peerId = peerByConv[cid];
+        if (peerId == null) continue;
+        final ({String name, String? avatarUrl})? info = peerInfo[peerId];
+        out.add(ConversationSummary(
           conversationId: cid,
           peerUserId: peerId,
           peerDisplayName: info?.name ?? 'Użytkownik',
           peerAvatarUrl: info?.avatarUrl,
           lastMessagePreview: last?['body']?.toString(),
-          lastMessageAt:
-              atRaw != null ? DateTime.tryParse(atRaw) : null,
-        ),
-      );
+          lastMessageAt: atRaw != null ? DateTime.tryParse(atRaw) : null,
+        ));
+      }
     }
 
     out.sort((ConversationSummary a, ConversationSummary b) {
       final DateTime? ta = a.lastMessageAt;
       final DateTime? tb = b.lastMessageAt;
-      if (ta == null && tb == null) {
-        return 0;
-      }
-      if (ta == null) {
-        return 1;
-      }
-      if (tb == null) {
-        return -1;
-      }
+      if (ta == null && tb == null) return 0;
+      if (ta == null) return 1;
+      if (tb == null) return -1;
       return tb.compareTo(ta);
     });
     return out;
